@@ -249,27 +249,29 @@ fn prompt_user_for_action(
 
 /// Delete local branch (safe delete with -d)
 fn delete_local_branch_safe(branch: &str) -> Result<()> {
-    // TODO: Run: git branch -d <branch>
-    todo!("Delete local branch with -d")
+    git(&["branch", "-d", branch])?;
+    Ok(())
 }
 
 /// Force delete local branch (with -D)
 fn delete_local_branch_force(branch: &str) -> Result<()> {
-    // TODO: Run: git branch -D <branch>
-    todo!("Force delete local branch with -D")
+    git(&["branch", "-D", branch])?;
+    Ok(())
 }
 
 /// Delete remote branch
 fn delete_remote_branch(branch: &str) -> Result<()> {
-    // TODO: Run: git push origin --delete <branch>
     // Ignore errors (branch might already be deleted)
-    todo!("Delete remote branch")
+    let _ = Command::new("git")
+        .args(&["push", "origin", "--delete", branch])
+        .output();
+    Ok(())
 }
 
 /// Push local branch to remote
 fn push_branch(branch: &str) -> Result<()> {
-    // TODO: Run: git push origin <branch>
-    todo!("Push branch to remote")
+    git(&["push", "origin", branch])?;
+    Ok(())
 }
 
 // =============================================================================
@@ -280,13 +282,24 @@ fn push_branch(branch: &str) -> Result<()> {
 fn handle_push_option(branch: &str, main_branch: &str) -> Result<()> {
     println!("Pushing '{}' to origin...", branch);
 
-    // TODO: Push branch
-    // TODO: Re-fetch: git fetch --prune
-    // TODO: Check if remote is now merged
-    // TODO: If merged, delete both branches
-    // TODO: If not merged, print warning and keep
+    push_branch(branch)?;
 
-    todo!("Implement push and re-evaluation logic")
+    // Re-fetch to get latest remote state
+    git(&["fetch", "--prune"])?;
+
+    // Check if remote is now merged
+    let remote_merged = is_remote_merged(branch, main_branch)?;
+
+    if remote_merged {
+        // Both local and remote are now merged - delete both
+        delete_local_branch_safe(branch)?;
+        delete_remote_branch(branch)?;
+        println!("Deleted: {} (local, remote)", branch);
+    } else {
+        println!("Warning: '{}' remote is still not merged into {}, keeping branch", branch, main_branch);
+    }
+
+    Ok(())
 }
 
 /// Process a single local branch that is merged to main
@@ -302,49 +315,52 @@ fn process_merged_local_branch(
 
     let local_merged = true; // We know it's merged (from query)
 
-    // TODO: Check if remote branch exists
-    let has_remote = false; // TODO: has_remote_branch(branch)?
+    let has_remote = has_remote_branch(branch)?;
 
     if !has_remote {
         // No remote branch - safe to delete local
-        // TODO: delete_local_branch_safe(branch)?
+        delete_local_branch_safe(branch)?;
         println!("Deleted: {} (local)", branch);
         return Ok(());
     }
 
-    // TODO: Check if remote branch is also merged
-    let remote_merged = false; // TODO: is_remote_merged(branch, main_branch)?
+    let remote_merged = is_remote_merged(branch, main_branch)?;
 
     if remote_merged {
         // Both local and remote are merged - safe to delete both
-        // TODO: delete_local_branch_safe(branch)?
-        // TODO: delete_remote_branch(branch)?
+        delete_local_branch_safe(branch)?;
+        delete_remote_branch(branch)?;
         println!("Deleted: {} (local, remote)", branch);
         return Ok(());
     }
 
     // Local is merged but remote is not - require user decision
-    // TODO: Get ahead/behind counts
-    let (ahead, behind) = (0, 0); // TODO: get_branch_ahead_behind(branch, &format!("origin/{}", branch))?
+    let (ahead, behind) = get_branch_ahead_behind(branch, &format!("origin/{}", branch))?;
 
-    // TODO: Prompt user for action
-    let action = BranchAction::Skip; // TODO: prompt_user_for_action(...)
+    let action = prompt_user_for_action(
+        branch,
+        local_merged,
+        remote_merged,
+        has_remote,
+        ahead,
+        behind,
+    )?;
 
-    // TODO: Execute chosen action
+    // Execute chosen action
     match action {
         BranchAction::Skip => {
             println!("Skipping: {}", branch);
         }
         BranchAction::Push => {
-            // TODO: handle_push_option(branch, main_branch)?
+            handle_push_option(branch, main_branch)?;
         }
         BranchAction::DeleteLocal => {
-            // TODO: delete_local_branch_force(branch)?
+            delete_local_branch_force(branch)?;
             println!("Deleted: {} (local)", branch);
         }
         BranchAction::DeleteBoth => {
-            // TODO: delete_local_branch_force(branch)?
-            // TODO: delete_remote_branch(branch)?
+            delete_local_branch_force(branch)?;
+            delete_remote_branch(branch)?;
             println!("Deleted: {} (local, remote) - FORCED", branch);
         }
     }
@@ -354,16 +370,15 @@ fn process_merged_local_branch(
 
 /// Clean up merged local branches
 fn clean_local_branches(main_branch: &str) -> Result<()> {
-    // TODO: Get worktree branches
-    let worktree_branches: Vec<String> = Vec::new(); // TODO: get_worktree_branches()?
-
-    // TODO: Get merged local branches
-    let merged_branches = Vec::<String>::new(); // TODO: get_merged_local_branches(main_branch)?
+    let worktree_branches = get_worktree_branches()?;
+    let merged_branches = get_merged_local_branches(main_branch)?;
 
     // Process each merged branch
     for branch in merged_branches {
-        // TODO: Call process_merged_local_branch for each branch
         // Handle errors gracefully, continue with remaining branches
+        if let Err(e) = process_merged_local_branch(&branch, main_branch, &worktree_branches) {
+            eprintln!("Error processing branch '{}': {}", branch, e);
+        }
     }
 
     Ok(())
@@ -371,15 +386,16 @@ fn clean_local_branches(main_branch: &str) -> Result<()> {
 
 /// Clean up merged remote branches that don't have local counterparts
 fn clean_remote_branches(main_branch: &str) -> Result<()> {
-    // TODO: Get merged remote branches
-    let remote_merged_branches = Vec::<String>::new(); // TODO: get_merged_remote_branches(main_branch)?
+    let remote_merged_branches = get_merged_remote_branches(main_branch)?;
 
     // Process each remote-only branch
     for branch in remote_merged_branches {
         // Skip if local branch exists (already handled in clean_local_branches)
-        // TODO: if has_local_branch(&branch)? { continue; }
+        if has_local_branch(&branch)? {
+            continue;
+        }
 
-        // TODO: delete_remote_branch(&branch)?
+        delete_remote_branch(&branch)?;
         println!("Deleted: {} (remote)", branch);
     }
 

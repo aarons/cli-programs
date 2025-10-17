@@ -29,4 +29,4 @@ Rather we want high level accomplishments and context, like this:
 
 ```
 
-Be sure to run `cargo test` once finished with your changes.
+Be sure to run `cargo test -p changelog-validator` once finished with your changes.

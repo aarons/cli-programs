@@ -2,13 +2,16 @@
 
 ## [Unreleased]
 
+---
+
+## [1.0.0] - 2025-10-17
+
 ### Added
 - Initial project scaffolding and documentation
 - Core branch detection and status checking functionality
 - Interactive user prompts for branch cleanup decisions with status display
-
----
-
-## [1.0.0] - TBD
-
-Initial release (pending implementation completion)
+- Complete branch cleanup implementation for merged local and remote branches
+- Automatic deletion of branches merged into main/master
+- Interactive prompts for handling branches with unpushed commits or sync conflicts
+- Push and re-evaluate workflow for out-of-sync branches
+- Protection for branches in use by git worktrees
