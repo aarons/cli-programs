@@ -6,6 +6,10 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+const EXCLUDED_PACKAGES: &[&str] = &[
+    "changelog-validator",
+];
+
 #[derive(Parser)]
 #[command(name = "update-cli-programs")]
 #[command(about = "Update all cli-programs binaries in ~/code/bin")]
@@ -34,8 +38,6 @@ fn main() -> Result<()> {
         PathBuf::from(home).join("code").join("bin")
     });
 
-    println!("Installing cli-programs to: {}", target_dir.display());
-
     // Create target directory if it doesn't exist
     fs::create_dir_all(&target_dir)
         .context("Failed to create target directory")?;
@@ -48,17 +50,20 @@ fn main() -> Result<()> {
     let workspace_toml: WorkspaceToml = toml::from_str(&workspace_toml_content)
         .context("Failed to parse workspace Cargo.toml")?;
 
-    // Get all workspace members
+    // Get all workspace members, excluding those in EXCLUDED_PACKAGES
     let programs: Vec<String> = workspace_toml
         .workspace
-        .members;
+        .members
+        .into_iter()
+        .filter(|p| !EXCLUDED_PACKAGES.contains(&p.as_str()))
+        .collect();
 
     if programs.is_empty() {
         println!("No programs to install");
         return Ok(());
     }
 
-    println!("\nBuilding Rust tools...");
+    println!("Building Rust tools...");
 
     // Build all release binaries
     let build_status = Command::new("cargo")
@@ -70,18 +75,15 @@ fn main() -> Result<()> {
         anyhow::bail!("Failed to build Rust tools");
     }
 
-    println!("\nInstalling binaries:");
+    println!("\nInstalling programs:");
 
     // Install each program
     for program in &programs {
-        print!("  {} ... ", program);
-
         let binary_path = Path::new("target")
             .join("release")
             .join(program);
 
         if !binary_path.exists() {
-            println!("SKIP (binary not found)");
             continue;
         }
 
@@ -97,16 +99,10 @@ fn main() -> Result<()> {
         fs::set_permissions(&target_path, perms)
             .with_context(|| format!("Failed to set permissions on {}", target_path.display()))?;
 
-        println!("OK");
-    }
-
-    println!("\nInstallation complete!");
-    println!("\nInstalled programs:");
-    for program in &programs {
         println!("  - {}", program);
     }
 
-    println!("\nMake sure {} is in your PATH", target_dir.display());
+    println!("\nPrograms installed to {}", target_dir.display());
 
     Ok(())
 }

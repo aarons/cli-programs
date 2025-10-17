@@ -4,6 +4,20 @@
 
 ---
 
+## [1.2.0] - 2025-10-17
+
+### Changed
+- Improved output messaging
+
+---
+
+## [1.1.0] - 2025-10-17
+
+### Added
+- Package exclusion system to skip installation of library crates and development tools
+
+---
+
 ## [1.0.0] - 2025-10-17
 
 ### Added
