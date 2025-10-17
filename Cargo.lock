@@ -281,6 +281,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "git-clean"
+version = "1.0.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "git2",
+]
+
+[[package]]
 name = "git-conventional"
 version = "0.12.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
