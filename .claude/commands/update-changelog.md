@@ -1,4 +1,6 @@
-Please update the changelog for our recent work.
+Please update the version in Cargo.toml, as well as CHANGELOG.md for your recent work.
+
+Additional Context:
 
 The changelog is for human consumption; it's to help them understand what changed at a high level. We don't need detailed blow-by-blow implementation details.
 
@@ -26,3 +28,5 @@ Rather we want high level accomplishments and context, like this:
 - Branch status evaluation to determine whether work is merged
 
 ```
+
+Be sure to run `cargo test` once finished with your changes.

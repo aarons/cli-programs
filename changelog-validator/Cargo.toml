@@ -1,0 +1,12 @@
+[package]
+name = "changelog-validator"
+version = "1.0.1"
+edition = "2024"
+description = "Shared changelog validation library for workspace programs"
+
+[dependencies]
+anyhow = { workspace = true }
+regex = { workspace = true }
+once_cell = { workspace = true }
+
+[dev-dependencies]

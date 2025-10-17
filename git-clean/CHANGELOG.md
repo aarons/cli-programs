@@ -5,6 +5,7 @@
 ### Added
 - Initial project scaffolding and documentation
 - Core branch detection and status checking functionality
+- Interactive user prompts for branch cleanup decisions with status display
 
 ---
 

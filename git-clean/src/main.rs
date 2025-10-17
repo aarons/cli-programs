@@ -3,6 +3,7 @@
 use anyhow::{Context, Result};
 use clap::Parser;
 use git2::Repository;
+use std::io::{self, Write};
 use std::process::Command;
 
 #[derive(Parser, Debug)]
@@ -197,19 +198,49 @@ fn prompt_user_for_action(
     ahead: usize,
     behind: usize,
 ) -> Result<BranchAction> {
-    // TODO: Display branch status:
-    // - Local merge status
-    // - Remote merge status (if has_remote)
-    // - Ahead/behind info (if has_remote)
+    // Display branch status
+    println!("\nBranch: {}", branch);
+    println!("  Local merged: {}", if local_merged { "yes" } else { "no" });
 
-    // TODO: Display options based on has_remote:
-    // With remote: push, skip, local, both
-    // Without remote: skip, local
+    if has_remote {
+        println!("  Remote merged: {}", if remote_merged { "yes" } else { "no" });
+        println!("  Ahead: {} | Behind: {}", ahead, behind);
+    }
 
-    // TODO: Read user input from stdin
+    println!();
+
+    // Display options based on has_remote
+    if has_remote {
+        println!("Options:");
+        println!("  [p]ush  - Push to remote and re-evaluate");
+        println!("  [s]kip  - Skip this branch");
+        println!("  [l]ocal - Delete local branch only");
+        println!("  [b]oth  - Delete both local and remote");
+    } else {
+        println!("Options:");
+        println!("  [s]kip  - Skip this branch");
+        println!("  [l]ocal - Delete local branch");
+    }
+
+    // Read user input from stdin
+    print!("Action: ");
+    io::stdout().flush()?;
+
+    let mut input = String::new();
+    io::stdin().read_line(&mut input)?;
+    let input = input.trim().to_lowercase();
+
     // Parse response and return appropriate BranchAction
-
-    todo!("Implement user prompt and input handling")
+    match input.as_str() {
+        "s" | "skip" => Ok(BranchAction::Skip),
+        "l" | "local" => Ok(BranchAction::DeleteLocal),
+        "p" | "push" if has_remote => Ok(BranchAction::Push),
+        "b" | "both" if has_remote => Ok(BranchAction::DeleteBoth),
+        _ => {
+            println!("Invalid option, skipping branch");
+            Ok(BranchAction::Skip)
+        }
+    }
 }
 
 // =============================================================================
