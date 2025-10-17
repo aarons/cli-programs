@@ -1,0 +1,19 @@
+[package]
+name = "gc"
+version = "1.0.0"
+edition = "2024"
+
+[dependencies]
+clap = { workspace = true }
+anyhow = { workspace = true }
+emojis = "0.7"
+unicode-segmentation = "1.10"
+git-conventional = "0.12.9"
+git2 = "0.20.2"
+email_address = "0.2.9"
+url = "2.5.7"
+addr = "0.15.6"
+
+[dev-dependencies]
+assert_cmd = "2.0"
+predicates = "3.0"
