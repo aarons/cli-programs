@@ -3,8 +3,8 @@
 ## [Unreleased]
 
 ### Added
-- Placeholder implementation of git-clean branch cleanup tool
-- Readme documentation and changelog
+- Initial project scaffolding and documentation
+- Core branch detection and status checking functionality
 
 ---
 

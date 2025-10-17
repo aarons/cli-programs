@@ -45,36 +45,86 @@ fn is_git_repo() -> bool {
 /// Get branches currently used by worktrees
 /// Returns a Vec of branch names that are checked out in worktrees
 fn get_worktree_branches() -> Result<Vec<String>> {
-    // TODO: Parse output of: git worktree list --porcelain
-    // Extract lines starting with "branch " and collect branch names
-    todo!("Parse git worktree list --porcelain output")
+    let output = git(&["worktree", "list", "--porcelain"])?;
+
+    let branches: Vec<String> = output
+        .lines()
+        .filter(|line| line.starts_with("branch "))
+        .map(|line| {
+            // Extract branch name after "branch refs/heads/"
+            line.strip_prefix("branch refs/heads/")
+                .unwrap_or(line.strip_prefix("branch ").unwrap_or(""))
+                .to_string()
+        })
+        .collect();
+
+    Ok(branches)
 }
 
 /// Detect main branch (main or master)
 fn get_main_branch() -> Result<String> {
-    // TODO: Check if refs/heads/main exists, else check refs/heads/master
-    // Use git show-ref --verify --quiet refs/heads/main
-    // Default to "main" if neither exists
-    todo!("Detect main or master branch")
+    // Check if main exists
+    let main_check = Command::new("git")
+        .args(&["show-ref", "--verify", "--quiet", "refs/heads/main"])
+        .status()
+        .context("Failed to check for main branch")?;
+
+    if main_check.success() {
+        return Ok("main".to_string());
+    }
+
+    // Check if master exists
+    let master_check = Command::new("git")
+        .args(&["show-ref", "--verify", "--quiet", "refs/heads/master"])
+        .status()
+        .context("Failed to check for master branch")?;
+
+    if master_check.success() {
+        return Ok("master".to_string());
+    }
+
+    // Neither exists - this is an error
+    anyhow::bail!("Could not find main or master branch")
 }
 
 /// Get list of local branches merged into main
 /// Excludes: current branch (*), main, master, develop
 fn get_merged_local_branches(main_branch: &str) -> Result<Vec<String>> {
-    // TODO: Run: git branch --merged <main_branch>
-    // Filter out branches starting with *, and exact matches for main/master/develop
-    // Return cleaned branch names (trimmed whitespace)
-    todo!("Get merged local branches")
+    let output = git(&["branch", "--merged", main_branch])?;
+
+    let protected_branches = ["main", "master", "develop"];
+
+    let branches: Vec<String> = output
+        .lines()
+        .map(|line| line.trim())
+        .filter(|line| !line.starts_with('*')) // Exclude current branch
+        .map(|line| line.trim_start_matches("* ").trim())
+        .filter(|branch| !protected_branches.contains(branch)) // Exclude protected branches
+        .map(|s| s.to_string())
+        .collect();
+
+    Ok(branches)
 }
 
 /// Get list of remote branches merged into origin/main
 /// Excludes: HEAD, main, master, develop, origin/main, origin/master, origin/develop
 fn get_merged_remote_branches(main_branch: &str) -> Result<Vec<String>> {
-    // TODO: Run: git branch -r --merged origin/<main_branch>
-    // Filter out HEAD and protected branches
-    // Strip "origin/" prefix from branch names
-    // Return cleaned branch names
-    todo!("Get merged remote branches")
+    let output = git(&["branch", "-r", "--merged", &format!("origin/{}", main_branch)])?;
+
+    let protected_branches = ["main", "master", "develop"];
+
+    let branches: Vec<String> = output
+        .lines()
+        .map(|line| line.trim())
+        .filter(|line| !line.contains("HEAD")) // Exclude HEAD
+        .filter_map(|line| {
+            // Strip "origin/" prefix
+            line.strip_prefix("origin/").map(|s| s.to_string())
+        })
+        .filter(|branch| !protected_branches.contains(&branch.as_str())) // Exclude protected branches
+        .collect();
+
+    Ok(branches)
 }
 
 // =============================================================================
@@ -83,32 +133,46 @@ fn get_merged_remote_branches(main_branch: &str) -> Result<Vec<String>> {
 
 /// Check if a remote branch exists for the given local branch
 fn has_remote_branch(branch: &str) -> Result<bool> {
-    // TODO: Use git show-ref --verify --quiet refs/remotes/origin/<branch>
-    // Return true if command succeeds (exit code 0)
-    todo!("Check if remote branch exists")
+    let status = Command::new("git")
+        .args(&["show-ref", "--verify", "--quiet", &format!("refs/remotes/origin/{}", branch)])
+        .status()
+        .context("Failed to check for remote branch")?;
+
+    Ok(status.success())
 }
 
 /// Check if a local branch exists
 fn has_local_branch(branch: &str) -> Result<bool> {
-    // TODO: Use git show-ref --verify --quiet refs/heads/<branch>
-    // Return true if command succeeds (exit code 0)
-    todo!("Check if local branch exists")
+    let status = Command::new("git")
+        .args(&["show-ref", "--verify", "--quiet", &format!("refs/heads/{}", branch)])
+        .status()
+        .context("Failed to check for local branch")?;
+
+    Ok(status.success())
 }
 
 /// Check if remote branch is merged into origin/main
 fn is_remote_merged(branch: &str, main_branch: &str) -> Result<bool> {
-    // TODO: Run: git branch -r --merged origin/<main_branch>
-    // Check if "origin/<branch>" appears in output
-    todo!("Check if remote branch is merged")
+    let output = git(&["branch", "-r", "--merged", &format!("origin/{}", main_branch)])?;
+
+    let target = format!("origin/{}", branch);
+    Ok(output.lines().any(|line| line.trim() == target))
 }
 
 /// Get ahead/behind commit counts between local and remote branch
 /// Returns (ahead, behind) tuple
 fn get_branch_ahead_behind(local_branch: &str, remote_branch: &str) -> Result<(usize, usize)> {
-    // TODO: Get ahead count: git rev-list --count <remote>..<local>
-    // TODO: Get behind count: git rev-list --count <local>..<remote>
-    // Return tuple of (ahead, behind)
-    todo!("Calculate ahead/behind counts")
+    // Get ahead count (commits in local not in remote)
+    let ahead_output = git(&["rev-list", "--count", &format!("{}..{}", remote_branch, local_branch)])?;
+    let ahead: usize = ahead_output.trim().parse()
+        .context("Failed to parse ahead count")?;
+
+    // Get behind count (commits in remote not in local)
+    let behind_output = git(&["rev-list", "--count", &format!("{}..{}", local_branch, remote_branch)])?;
+    let behind: usize = behind_output.trim().parse()
+        .context("Failed to parse behind count")?;
+
+    Ok((ahead, behind))
 }
 
 // =============================================================================
