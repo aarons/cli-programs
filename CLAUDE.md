@@ -25,7 +25,7 @@ cargo run -p update-cli-programs --release
 # Build all tools
 cargo build --release
 
-# Build specific tool
+# Build specific program
 cargo build -p gc --release
 ```
 
@@ -46,21 +46,21 @@ cargo test -- --nocapture
 ### Workspace Structure
 
 The repository uses Cargo workspaces defined in the root `Cargo.toml`.
-Each tool is a member workspace in its own directory with its own `Cargo.toml`.
+Each program is a member workspace in its own directory with its own `Cargo.toml`.
 Shared dependencies are defined at the workspace level in `[workspace.dependencies]`.
 
-### Tool-Specific Documentation
+Each program has it's own readme and changelog:
 
-Each tool has its own README.md with details.
-When working on a specific tool, you MUST refer to its README for context:
+- ./program-name/README.md
+- ./program-name/CHANGELOG.md
 
-- gc - `gc/README.md`
-- update-cli-programs - `update-cli-programs/README.md`
+Changelog's follow the keep a changelog format.
 
 ## Adding New Tools
 
 1. Create new directory in workspace root
 2. Add basic `Cargo.toml` with workspace dependencies
 3. Add to `members` array in root `Cargo.toml`
-4. Update README.md installation section
-5. Follow Rust 2024 edition conventions
+4. Add a README.md for the project
+5. Add a CHANGELOG.md for the project
+6. Follow Rust 2024 edition conventions
