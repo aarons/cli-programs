@@ -8,6 +8,15 @@ This is a monorepo for command-line utilities written in Rust for Unix environme
 
 **Current tools:**
 - gc - Automated git commit with AI-generated conventional commit messages using Claude CLI
+- install - Automated installer for all workspace binaries to ~/code/bin
+
+## Installation
+
+Use the automated Rust installer to install all tools to ~/code/bin:
+
+```bash
+cargo run -p install --release
+```
 
 ## Development Commands
 
@@ -46,6 +55,7 @@ Each tool has its own README.md with details.
 When working on a specific tool, you MUST refer to its README for context:
 
 - gc - `gc/README.md`
+- install - `install/README.md`
 
 ## Adding New Tools
 

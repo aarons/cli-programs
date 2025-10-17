@@ -8,17 +8,32 @@ Collection of command-line utilities written in Rust for Unix environments (macO
 
 ## Installation
 
+### Automated Installation (Recommended)
+
+Use the Rust installer to build and install all tools to `~/code/bin`:
+
+```bash
+cargo run -p install --release
+```
+
+Or install to a custom location:
+
+```bash
+cargo run -p install --release -- --target /usr/local/bin
+```
+
+Make sure the target directory is in your PATH:
+
+```bash
+export PATH="$HOME/code/bin:$PATH"
+```
+
+### Manual Installation
+
 Install individual tools using cargo:
 
 ```bash
 cargo install --path gc
-```
-
-Or install all tools:
-
-```bash
-cargo install --path gc
-# Add more as they're created
 ```
 
 ## Development
