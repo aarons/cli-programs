@@ -1,13 +1,13 @@
-# install
+# update-cli-programs
 
-A Rust-based installer for cli-programs binaries.
+A Rust-based installer/updater for cli-programs binaries.
 
 ## Overview
 
-This tool automates the installation of all Rust CLI tools in this workspace to a target directory (defaults to `~/code/bin`). It:
+This tool automates the installation and updating of all Rust CLI tools in this workspace to a target directory (defaults to `~/code/bin`). It:
 
 1. Reads the workspace members from the root `Cargo.toml`
-2. Builds all tools in release mode (excluding itself)
+2. Builds all tools in release mode (including itself)
 3. Copies binaries to the target directory
 4. Makes them executable (755 permissions)
 
@@ -16,11 +16,11 @@ This tool automates the installation of all Rust CLI tools in this workspace to 
 From the repository root:
 
 ```bash
-# Install to default location (~/code/bin)
-cargo run -p install --release
+# Install/update to default location (~/code/bin)
+cargo run -p update-cli-programs --release
 
-# Install to custom location
-cargo run -p install --release -- --target /usr/local/bin
+# Install/update to custom location
+cargo run -p update-cli-programs --release -- --target /usr/local/bin
 ```
 
 ## Requirements
@@ -30,9 +30,10 @@ cargo run -p install --release -- --target /usr/local/bin
 
 ## What Gets Installed
 
-The installer automatically discovers and installs all workspace members except itself. Currently:
+The installer automatically discovers and installs all workspace members. Currently:
 
 - `gc` - Git commit automation tool
+- `update-cli-programs` - This installer/updater itself
 
 As new tools are added to the workspace, they will automatically be included in the installation process.
 

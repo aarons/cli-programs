@@ -13,13 +13,13 @@ Collection of command-line utilities written in Rust for Unix environments (macO
 Use the Rust installer to build and install all tools to `~/code/bin`:
 
 ```bash
-cargo run -p install --release
+cargo run -p update-cli-programs --release
 ```
 
 Or install to a custom location:
 
 ```bash
-cargo run -p install --release -- --target /usr/local/bin
+cargo run -p update-cli-programs --release -- --target /usr/local/bin
 ```
 
 Make sure the target directory is in your PATH:

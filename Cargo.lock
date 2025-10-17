@@ -435,16 +435,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "install"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "serde",
- "toml",
-]
-
-[[package]]
 name = "is_terminal_polyfill"
 version = "1.70.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -865,6 +855,16 @@ name = "unicode-segmentation"
 version = "1.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f6ccf251212114b54433ec949fd6a7841275f9ada20dddd2f29e9ceea4501493"
+
+[[package]]
+name = "update-cli-programs"
+version = "1.0.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "serde",
+ "toml",
+]
 
 [[package]]
 name = "url"

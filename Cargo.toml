@@ -1,5 +1,5 @@
 [workspace]
-members = ["gc", "install"]
+members = ["gc", "update-cli-programs"]
 resolver = "2"
 
 # Shared dependencies across all tools

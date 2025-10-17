@@ -7,8 +7,8 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 #[derive(Parser)]
-#[command(name = "install")]
-#[command(about = "Install cli-programs binaries to ~/code/bin")]
+#[command(name = "update-cli-programs")]
+#[command(about = "Update all cli-programs binaries in ~/code/bin")]
 struct Cli {
     /// Target directory (defaults to ~/code/bin)
     #[arg(short, long)]
@@ -48,13 +48,10 @@ fn main() -> Result<()> {
     let workspace_toml: WorkspaceToml = toml::from_str(&workspace_toml_content)
         .context("Failed to parse workspace Cargo.toml")?;
 
-    // Filter out the install tool itself
+    // Get all workspace members
     let programs: Vec<String> = workspace_toml
         .workspace
-        .members
-        .into_iter()
-        .filter(|member| member != "install")
-        .collect();
+        .members;
 
     if programs.is_empty() {
         println!("No programs to install");
@@ -65,7 +62,7 @@ fn main() -> Result<()> {
 
     // Build all release binaries
     let build_status = Command::new("cargo")
-        .args(&["build", "--release", "--workspace", "--exclude", "install"])
+        .args(&["build", "--release", "--workspace"])
         .status()
         .context("Failed to run cargo build")?;
 
