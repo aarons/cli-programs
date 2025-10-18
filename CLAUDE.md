@@ -8,11 +8,11 @@ This is a monorepo for command-line utilities written in Rust for Unix environme
 
 **Current tools:**
 - gc - Automated git commit with AI-generated conventional commit messages using Claude CLI
-- update-cli-programs - Automated installer/updater for all workspace binaries to ~/code/bin
+- update-cli-programs - Automated installer/updater for all workspace binaries to ~/.local/bin
 
 ## Installation
 
-Use the automated Rust installer to install all tools to ~/code/bin:
+Use the automated Rust installer to install all tools to ~/.local/bin:
 
 ```bash
 cargo run -p update-cli-programs --release

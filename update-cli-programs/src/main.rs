@@ -12,9 +12,9 @@ const EXCLUDED_PACKAGES: &[&str] = &[
 
 #[derive(Parser)]
 #[command(name = "update-cli-programs")]
-#[command(about = "Update all cli-programs binaries in ~/code/bin")]
+#[command(about = "Update all cli-programs binaries in ~/.local/bin")]
 struct Cli {
-    /// Target directory (defaults to ~/code/bin)
+    /// Target directory (defaults to ~/.local/bin)
     #[arg(short, long)]
     target: Option<PathBuf>,
 }
@@ -35,7 +35,7 @@ fn main() -> Result<()> {
     // Determine target directory
     let target_dir = cli.target.unwrap_or_else(|| {
         let home = std::env::var("HOME").expect("HOME environment variable not set");
-        PathBuf::from(home).join("code").join("bin")
+        PathBuf::from(home).join(".local").join("bin")
     });
 
     // Create target directory if it doesn't exist

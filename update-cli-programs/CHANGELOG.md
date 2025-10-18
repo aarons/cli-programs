@@ -4,6 +4,13 @@
 
 ---
 
+## [1.3.0] - 2025-10-17
+
+### Changed
+- Default installation directory changed from `~/code/bin` to `~/.local/bin` to align with XDG Base Directory specification and modern standards
+
+---
+
 ## [1.2.0] - 2025-10-17
 
 ### Changed

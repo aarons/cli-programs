@@ -4,59 +4,36 @@ Collection of command-line utilities written in Rust for Unix environments (macO
 
 ## Tools
 
-- **gc** - Automated git commit with AI-generated conventional commit messages
+- **gc** - Automated git commit messages using Claude CLI to generate conventional commit messages
+- **git-clean** - Safely remove local and remote git branches that have been merged to main
+- **update-cli-programs** - Automated installer/updater for all CLI programs
 
 ## Installation
 
-### Automated Installation (Recommended)
-
-Use the Rust installer to build and install all tools to `~/code/bin`:
+From the repository root:
 
 ```bash
+# Install/update to default location (~/.local/bin)
 cargo run -p update-cli-programs --release
-```
 
-Or install to a custom location:
-
-```bash
+# Install/update to custom location
 cargo run -p update-cli-programs --release -- --target /usr/local/bin
 ```
 
-Make sure the target directory is in your PATH:
+## Development Process
 
-```bash
-export PATH="$HOME/code/bin:$PATH"
-```
+Let's say we're going to add a feature to the git-clean tool.
 
-### Manual Installation
-
-Install individual tools using cargo:
-
-```bash
-cargo install --path gc
-```
-
-## Development
-
-Build all tools:
-```bash
-cargo build --release
-```
-
-Build a specific tool:
-```bash
-cargo build -p gc --release
-```
-
-Run tests:
-```bash
-cargo test
-```
-
-Run a specific tool during development:
-```bash
-cargo run -p gc -- <args>
-```
+The general workflow is to:
+- checkout a feature branch `git checkout -b new-feature`
+- make changes to `git-clean/src/main.rs`
+- run the tests (you added tests right?) `cargo test -p git-clean`
+- try out the program to make sure it works correctly `cargo run -p git-clean`
+- update the changelog and Cargo.toml version (can use the `/update-changelog` claude command)
+- commit the changes using `gc` (might as well use the program in this repo right!)
+- merge the changes to main if you are feeling good about it all `git checkout main; git merge new-feature`
+- push the changes to remote `git push`
+- install the updated program `update-cli-programs`
 
 ## Requirements
 
