@@ -6,42 +6,23 @@ A simple CLI wrapper for Claude Code that provides command line assistance and g
 
 `ask` is a Rust-based tool that makes it easy to get help from Claude AI directly from your command line. It has two modes:
 
-1. **Shell Command Mode (default)**: Ask for command suggestions and get executable commands without markup, automatically copied to your clipboard
-2. **General Mode**: Ask general questions and get detailed responses
+1. **Shell Command Mode (default)**: Ask for command help - always returns an executable command without markup, the answer is automatically copied to the clipboard for easy pasting
+
+2. **General Mode**: Used with the `-g` or `--general` flag. Answers a general question without suggesting a command.
 
 ## Usage
 
 ### Basic Shell Commands
 
 ```bash
-# Ask for a command suggestion (automatically copied to clipboard)
 ask how to find all pdf files
 # Response: find . -name "*.pdf"
 
-# Compress a directory
-ask compress directory into tar.gz
-
-# Find files modified today
 ask find files modified today
-
-# Get help with text replacement
-ask replace all foo with bar in file.txt
+# Response: find . -type f -newermt "$(date +%Y-%m-%d)" 2>/dev/null
 
 # Interactive mode (prompts for question)
 ask
-```
-
-### With Piped Input
-
-```bash
-# Analyze error logs
-cat error.log | ask what is causing this error
-
-# Get commit message suggestions
-git status | ask create a commit message for these changes
-
-# Summarize code changes
-git diff | ask -g summarize these changes
 ```
 
 ### General Questions
@@ -52,16 +33,18 @@ ask -g explain how rust ownership works
 
 # Or use the long form
 ask --general what is the difference between tcp and udp
-
-# Debug concepts
-ask -g explain this error: "segmentation fault"
 ```
 
-### Advanced Options
+### Using Piped Input for Context
+
+Note that `-g` is also used for these commands so that we get back a summary or explanation instead of a bash command.
 
 ```bash
-# Specify output format (passed to Claude CLI)
-ask --output-format json how to list files
+# Analyze error logs
+cat error.log | ask -g what is causing this error
+
+# Summarize code changes
+git diff | ask -g summarize these changes
 ```
 
 ## How It Works
