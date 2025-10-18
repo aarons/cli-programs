@@ -4,30 +4,35 @@ Collection of command-line utilities written in Rust for Unix environments (macO
 
 ## Programs
 
-- **ask** - AI helper for shell commands and general questions
-- **gc** - Automated git commit messages using Claude Code CLI
-- **git-clean** - Interactive tool to safely remove merged local and remote git branches
-- **update-cli-programs** - Automated installer/updater for these CLI programs
+- **[ask](ask/README.md)** - Helper for shell commands and general questions
+- **[gc](gc/README.md)** - Automated git commit messages using Claude Code CLI
+- **[git-clean](git-clean/README.md)** - Interactive tool to safely remove merged local and remote git branches
+- **[update-cli-programs](update-cli-programs/README.md)** - Automated installer/updater for these CLI programs
 
 ### ask
 
-AI command line assistant that helps find the right shell commands or answers general questions. Uses Claude Code CLI by default, so no API credits are required if you have a subscription.
-
-By default, responds with valid bash commands that are automatically copied to your clipboard. Alternatively use `-g` for general questions.
+`ask` is an AI helper for the command line that provides shell commands or answers to general questions. It uses Claude Code CLI by default, so no API credits are required if you have a subscription.
 
 Example usage:
 
 ```bash
-# Get a shell command (answer is copied to clipboard for easy pasting)
+# Get a shell command
 ask how to count all files in subdirectories
-# Output: find . -type f | wc -l
+> find . -type f | wc -l
 
-# Ask general questions (not copied to clipboard)
+# Ask a general question
 ask -g explain how rust ownership works
+> detailed answer that could have been piped to a markdown file...
 
-# Works with piped input
+# Also works with piped input
 git diff | ask -g summarize these changes
 ```
+
+`ask` has two modes:
+- default mode which responds with a shell command (and only a shell command). It also copies this to the clipboard for easy pasting
+- general mode (`-g`) which is a general question, it will respond with an answer and not a shell command, and will not touch the clipboard.
+
+---
 
 ### gc
 
@@ -49,6 +54,8 @@ gc --nopush
 gc refactored authentication system
 ```
 
+---
+
 ### git-clean
 
 Simple tool to clean up git branches that have been merged into main. Safely identifies and deletes both local and remote branches while protecting important branches.
@@ -59,6 +66,8 @@ Example usage:
 # Clean up merged branches
 git-clean
 ```
+
+---
 
 ## Installation
 
