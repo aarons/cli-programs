@@ -2,24 +2,79 @@
 
 Collection of command-line utilities written in Rust for Unix environments (macOS and Linux).
 
-## Tools
+## Programs
 
-- **ask** - Claude CLI wrapper for shell commands and questions
-- **gc** - Automated git commit messages using Claude CLI to generate conventional commit messages
-- **git-clean** - Safely remove local and remote git branches that have been merged to main
-- **update-cli-programs** - Automated installer/updater for all CLI programs
+- **ask** - AI helper for shell commands and general questions
+- **gc** - Automated git commit messages using Claude Code CLI
+- **git-clean** - Interactive tool to safely remove merged local and remote git branches
+- **update-cli-programs** - Automated installer/updater for these CLI programs
+
+### ask
+
+AI command line assistant that helps find the right shell commands or answers general questions. Uses Claude Code CLI by default, so no API credits are required if you have a subscription.
+
+By default, responds with valid bash commands that are automatically copied to your clipboard. Alternatively use `-g` for general questions.
+
+Example usage:
+
+```bash
+# Get a shell command (answer is copied to clipboard for easy pasting)
+ask how to count all files in subdirectories
+# Output: find . -type f | wc -l
+
+# Ask general questions (not copied to clipboard)
+ask -g explain how rust ownership works
+
+# Works with piped input
+git diff | ask -g summarize these changes
+```
+
+### gc
+
+Automatically generates conventional commit messages. Analyzes your git changes and creates properly formatted commit messages following the conventional commits specification.
+
+Example usage:
+
+```bash
+# Generate and commit with AI message
+gc
+
+# Commit only staged changes
+gc --staged
+
+# Commit without pushing to remote
+gc --nopush
+
+# Optionally you can provide additional context for better messages
+gc refactored authentication system
+```
+
+### git-clean
+
+Simple tool to clean up git branches that have been merged into main. Safely identifies and deletes both local and remote branches while protecting important branches.
+
+Example usage:
+
+```bash
+# Clean up merged branches
+git-clean
+```
 
 ## Installation
 
 From the repository root:
 
 ```bash
-# Install/update to default location (~/.local/bin)
+# First run: install all programs to ~/.local/bin
 cargo run -p update-cli-programs --release
 
-# Install/update to custom location
+# Future runs, can just do:
+update-cli-programs
+
+# Install programs to a custom bin folder
 cargo run -p update-cli-programs --release -- --target /usr/local/bin
 ```
+
 
 ## Development Process
 
