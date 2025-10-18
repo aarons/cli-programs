@@ -4,6 +4,7 @@ Collection of command-line utilities written in Rust for Unix environments (macO
 
 ## Tools
 
+- **ask** - Claude CLI wrapper for shell commands and questions
 - **gc** - Automated git commit messages using Claude CLI to generate conventional commit messages
 - **git-clean** - Safely remove local and remote git branches that have been merged to main
 - **update-cli-programs** - Automated installer/updater for all CLI programs

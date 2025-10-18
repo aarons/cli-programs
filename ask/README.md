@@ -85,7 +85,7 @@ ask
 ask compress directory into tar.gz
 
 # Analyze git diff
-git diff | ask summarize these changes
+git diff | ask -g summarize these changes
 
 # Debug an error message
 ask -g explain this error: "segmentation fault"
