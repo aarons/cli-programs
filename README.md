@@ -35,6 +35,18 @@ The general workflow is to:
 - push the changes to remote `git push`
 - install the updated program `update-cli-programs`
 
+## License
+
+This software is licensed under the **PolyForm Noncommercial License 1.0.0**.
+
+- ✅ Free for personal, educational, and nonprofit use
+- ✅ Attribution required
+- ❌ Use within a business or commercial context requires a commercial license
+
+For commercial licensing inquiries, please [create an issue](https://github.com/aarons/cli-programs/issues) with contact info.
+
+See the [LICENSE](LICENSE) file for full terms.
+
 ## Requirements
 
 - Rust 1.70 or later
