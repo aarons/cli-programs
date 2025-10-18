@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.2.0] - 2025-10-17
+
+### Changed
+- Unreleased sections are now explicitly disallowed (previously optional)
+- Changelog header must be immediately followed by first version section with only blank lines in between
+
+### Removed
+- Support for descriptive text between changelog header and first version entry
+
+---
+
 ## [1.1.0] - 2025-10-17
 
 ### Removed

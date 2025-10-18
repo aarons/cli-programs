@@ -29,7 +29,6 @@ static SECTION_PATTERN: Lazy<Regex> = Lazy::new(|| Regex::new(r"^### (.+)$").unw
 #[derive(Debug)]
 pub struct Changelog {
     pub content: String,
-    pub has_unreleased: bool,
     pub versions: Vec<Version>,
 }
 
@@ -79,8 +78,16 @@ pub fn validate_content(content: &str, path: &Path) -> Result<Changelog> {
         );
     }
 
-    // Check for [Unreleased] section (no longer required)
-    let has_unreleased = content.contains("## [Unreleased]");
+    // Check for [Unreleased] section (disallowed)
+    if content.contains("## [Unreleased]") {
+        bail!(
+            "{}: [Unreleased] sections are not allowed",
+            path.display()
+        );
+    }
+
+    // Validate that only blank lines appear between header and first version
+    validate_header_format(&lines, path)?;
 
     // Parse and validate versions
     let versions = parse_versions(&lines, path)?;
@@ -94,9 +101,42 @@ pub fn validate_content(content: &str, path: &Path) -> Result<Changelog> {
 
     Ok(Changelog {
         content: content.to_string(),
-        has_unreleased,
         versions,
     })
+}
+
+/// Validates that only blank lines appear between the header and first version
+fn validate_header_format(lines: &[&str], path: &Path) -> Result<()> {
+    let mut found_header = false;
+
+    for (i, line) in lines.iter().enumerate() {
+        let trimmed = line.trim();
+
+        // Found the header
+        if trimmed.starts_with("# Changelog") {
+            found_header = true;
+            continue;
+        }
+
+        // After header, check for non-blank lines before first version
+        if found_header {
+            // If we hit a version header, we're done
+            if VERSION_PATTERN.is_match(trimmed) {
+                break;
+            }
+
+            // If we find a non-blank line that's not a version header
+            if !trimmed.is_empty() {
+                bail!(
+                    "{}: Line {}: Found content between '# Changelog' header and first version section. Only blank lines are allowed.",
+                    path.display(),
+                    i + 1
+                );
+            }
+        }
+    }
+
+    Ok(())
 }
 
 /// Parses version entries from changelog lines
@@ -255,7 +295,6 @@ mod tests {
         let result = validate_content(content, Path::new("test.md"));
         assert!(result.is_ok());
         let changelog = result.unwrap();
-        assert!(!changelog.has_unreleased);
         assert_eq!(changelog.versions.len(), 1);
         assert_eq!(changelog.versions[0].version, "1.0.0");
         assert_eq!(changelog.versions[0].date, "2025-10-17");
@@ -274,8 +313,10 @@ mod tests {
     }
 
     #[test]
-    fn test_changelog_without_unreleased() {
+    fn test_unreleased_section_disallowed() {
         let content = r#"# Changelog
+
+## [Unreleased]
 
 ## [1.0.0] - 2025-10-17
 
@@ -283,16 +324,36 @@ mod tests {
 - Initial release
 "#;
         let result = validate_content(content, Path::new("test.md"));
-        assert!(result.is_ok());
-        let changelog = result.unwrap();
-        assert!(!changelog.has_unreleased);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("[Unreleased] sections are not allowed"));
+    }
+
+    #[test]
+    fn test_content_after_header_disallowed() {
+        let content = r#"# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [1.0.0] - 2025-10-17
+
+### Added
+- Initial release
+"#;
+        let result = validate_content(content, Path::new("test.md"));
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        assert!(err_msg.contains("Found content between '# Changelog' header and first version section"));
     }
 
     #[test]
     fn test_invalid_semver() {
         let content = r#"# Changelog
-
-## [Unreleased]
 
 ## [1.0] - 2025-10-17
 
@@ -308,8 +369,6 @@ mod tests {
     fn test_invalid_date() {
         let content = r#"# Changelog
 
-## [Unreleased]
-
 ## [1.0.0] - not-a-date
 
 ### Added
@@ -323,8 +382,6 @@ mod tests {
     #[test]
     fn test_invalid_section() {
         let content = r#"# Changelog
-
-## [Unreleased]
 
 ## [1.0.0] - 2025-10-17
 
@@ -340,8 +397,6 @@ mod tests {
     fn test_empty_section() {
         let content = r#"# Changelog
 
-## [Unreleased]
-
 ## [1.0.0] - 2025-10-17
 
 ### Added
@@ -354,8 +409,6 @@ mod tests {
     #[test]
     fn test_tbd_date() {
         let content = r#"# Changelog
-
-## [Unreleased]
 
 ## [1.0.0] - TBD
 
