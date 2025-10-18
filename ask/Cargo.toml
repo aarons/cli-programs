@@ -1,6 +1,6 @@
 [package]
 name = "ask"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2024"
 authors = ["Aaron"]
 description = "Simple CLI wrapper for Claude Code to ask questions and get command suggestions"
