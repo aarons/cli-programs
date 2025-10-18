@@ -1,0 +1,15 @@
+[package]
+name = "ask"
+version = "0.1.0"
+edition = "2024"
+authors = ["Aaron"]
+description = "Simple CLI wrapper for Claude Code to ask questions and get command suggestions"
+license = "PolyForm-Noncommercial-1.0.0"
+
+[[bin]]
+name = "ask"
+path = "src/main.rs"
+
+[dependencies]
+clap = { workspace = true }
+anyhow = { workspace = true }
