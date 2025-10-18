@@ -55,7 +55,6 @@ pub struct Section {
 /// Returns an error if:
 /// - File cannot be read
 /// - File doesn't start with "# Changelog"
-/// - Missing required [Unreleased] section
 /// - Invalid version format
 /// - Invalid date format
 /// - Invalid section headers
@@ -80,11 +79,8 @@ pub fn validate_content(content: &str, path: &Path) -> Result<Changelog> {
         );
     }
 
-    // Check for [Unreleased] section
+    // Check for [Unreleased] section (no longer required)
     let has_unreleased = content.contains("## [Unreleased]");
-    if !has_unreleased {
-        bail!("{}: Missing required [Unreleased] section", path.display());
-    }
 
     // Parse and validate versions
     let versions = parse_versions(&lines, path)?;
@@ -246,10 +242,6 @@ mod tests {
     fn test_valid_changelog() {
         let content = r#"# Changelog
 
-## [Unreleased]
-
----
-
 ## [1.0.0] - 2025-10-17
 
 ### Added
@@ -263,7 +255,7 @@ mod tests {
         let result = validate_content(content, Path::new("test.md"));
         assert!(result.is_ok());
         let changelog = result.unwrap();
-        assert!(changelog.has_unreleased);
+        assert!(!changelog.has_unreleased);
         assert_eq!(changelog.versions.len(), 1);
         assert_eq!(changelog.versions[0].version, "1.0.0");
         assert_eq!(changelog.versions[0].date, "2025-10-17");
@@ -282,7 +274,7 @@ mod tests {
     }
 
     #[test]
-    fn test_missing_unreleased() {
+    fn test_changelog_without_unreleased() {
         let content = r#"# Changelog
 
 ## [1.0.0] - 2025-10-17
@@ -291,11 +283,9 @@ mod tests {
 - Initial release
 "#;
         let result = validate_content(content, Path::new("test.md"));
-        assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("Missing required [Unreleased]"));
+        assert!(result.is_ok());
+        let changelog = result.unwrap();
+        assert!(!changelog.has_unreleased);
     }
 
     #[test]

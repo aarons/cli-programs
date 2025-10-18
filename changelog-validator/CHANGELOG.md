@@ -1,6 +1,9 @@
 # Changelog
 
-## [Unreleased]
+## [1.1.0] - 2025-10-17
+
+### Removed
+- Unreleased section requirement from changelog validation
 
 ---
 
