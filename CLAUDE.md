@@ -7,7 +7,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 This is a monorepo for command-line utilities written in Rust for Unix environments (macOS and Linux). The repository uses Cargo workspaces to manage multiple independent CLI tools.
 
 **Current tools:**
+- ask - Claude CLI wrapper for shell commands and questions
+- changelog-validator - Validates CHANGELOG.md files across all workspace projects
 - gc - Automated git commit with AI-generated conventional commit messages using Claude CLI
+- git-clean - Interactive tool to clean up local and remote Git branches
 - update-cli-programs - Automated installer/updater for all workspace binaries to ~/.local/bin
 
 ## Installation
@@ -54,7 +57,7 @@ Each program has it's own readme and changelog:
 - ./program-name/README.md
 - ./program-name/CHANGELOG.md
 
-Changelog's follow the keep a changelog format.
+Changelogs must follow a strict format validated by `changelog-validator`. See changelog-validator/README.md for detailed schema rules and examples.
 
 ## Adding New Tools
 
@@ -62,5 +65,6 @@ Changelog's follow the keep a changelog format.
 2. Add basic `Cargo.toml` with workspace dependencies
 3. Add to `members` array in root `Cargo.toml`
 4. Add a README.md for the project
-5. Add a CHANGELOG.md for the project
-6. Follow Rust 2024 edition conventions
+5. Add a CHANGELOG.md for the project (see gc/CHANGELOG.md for valid template)
+6. Run `cargo test -p changelog-validator` to verify changelog format
+7. Follow Rust 2024 edition conventions

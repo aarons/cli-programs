@@ -9,11 +9,12 @@ This library provides validation for `CHANGELOG.md` files following the [Keep a 
 ## Features
 
 - ✅ Validates Keep a Changelog format compliance
-- ✅ Checks for required sections (Unreleased, versioned releases)
 - ✅ Validates semantic versioning format (X.Y.Z)
 - ✅ Validates date format (YYYY-MM-DD or TBD)
 - ✅ Validates section headers (Added, Changed, Deprecated, Removed, Fixed, Security)
 - ✅ Ensures no empty sections
+- ✅ Ensures clean header format (no content between title and first version)
+- ✅ Disallows [Unreleased] sections
 - ✅ Automatically tests all workspace changelogs
 
 ## Usage
@@ -48,25 +49,19 @@ cargo test -p changelog-validator -- --nocapture
 A valid changelog must:
 
 1. **Start with header**: `# Changelog`
-2. **Have Unreleased section**: `## [Unreleased]`
-3. **Have at least one version**: `## [X.Y.Z] - YYYY-MM-DD`
-4. **Use semantic versioning**: Version numbers must be in X.Y.Z format
-5. **Use valid dates**: Either `YYYY-MM-DD` or `TBD`
-6. **Use standard sections**: Only `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`
-7. **No empty sections**: Every section must have at least one list item
-8. **No empty versions**: Every version must have at least one section
+2. **Clean header format**: Only blank lines allowed between `# Changelog` and first version (no descriptive text)
+3. **No [Unreleased] sections**: These are not allowed
+4. **Have at least one version**: `## [X.Y.Z] - YYYY-MM-DD`
+5. **Use semantic versioning**: Version numbers must be in X.Y.Z format
+6. **Use valid dates**: Either `YYYY-MM-DD` or `TBD`
+7. **Use standard sections**: Only `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`
+8. **No empty sections**: Every section must have at least one list item
+9. **No empty versions**: Every version must have at least one section
 
 ## Example Valid Changelog
 
 ```markdown
 # Changelog
-
-## [Unreleased]
-
-### Added
-- New feature in progress
-
----
 
 ## [1.0.0] - 2025-10-17
 
@@ -76,6 +71,12 @@ A valid changelog must:
 
 ### Fixed
 - Bug fixes from beta
+
+## [0.1.0] - 2025-10-01
+
+### Added
+- Beta release
+- Basic features
 ```
 
 ## Integration with Workspace
