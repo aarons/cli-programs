@@ -1,22 +1,18 @@
 # ask
 
-A simple CLI wrapper for Claude Code that provides command line assistance and general AI interaction.
+An AI that provides command line assistance and answers general questions. Currently utilize Claude Code (so no credits are needed if you have a subscription).
 
-## Overview
-
-`ask` is a Rust-based tool that makes it easy to get help from Claude AI directly from your command line. It has two modes:
-
-1. **Shell Command Mode (default)**: Ask for command help - always returns an executable command without markup, the answer is automatically copied to the clipboard for easy pasting
-
-2. **General Mode**: Used with the `-g` or `--general` flag. Answers a general question without suggesting a command.
+`ask` has two modes:
+- command mode (default) which returns shell commands that are copied to the clipboard for easy pasting
+- general mode (`-g`) for answering general questions or analyzing text
 
 ## Usage
 
 ### Basic Shell Commands
 
 ```bash
-ask how to find all pdf files
-# Response: find . -name "*.pdf"
+ask list all unique file extensions in folders recursively
+# Response: find . -type f | sed 's/.*\.//' | sort -u
 
 ask find files modified today
 # Response: find . -type f -newermt "$(date +%Y-%m-%d)" 2>/dev/null
@@ -49,17 +45,40 @@ git diff | ask -g summarize these changes
 
 ## How It Works
 
-1. **Shell Mode (default)**: Includes a system prompt that instructs Claude to return only valid shell commands without markup (no triple backticks). The response is automatically copied to your clipboard for easy pasting.
+### Shell Command Mode (Default)
 
-2. **General Mode** (`-g` or `--general`): Removes the shell-specific prompt, allowing for detailed explanations and general knowledge questions. Responses are not copied to clipboard.
+When you run `ask` without flags, it's optimized for getting shell commands:
 
-3. **Piped Input**: When you pipe data to `ask`, it's used as context for the question, making it easy to analyze logs, code, or other text.
+- Includes a system prompt that instructs Claude to return only valid shell commands without any markdown formatting (no triple backticks)
+- The response is automatically copied to your clipboard using `pbcopy` (macOS)
+- Perfect for quick command lookups that you can immediately paste and execute
+
+Example: `ask how to find all pdf files` returns `find . -name "*.pdf"` (copied to clipboard)
+
+### General Question Mode (`-g` or `--general`)
+
+When you use the `-g` or `--general` flag:
+
+- Removes the shell-specific prompt constraints
+- Allows Claude to provide detailed explanations, answer general knowledge questions, and format responses naturally
+- Responses are NOT copied to clipboard
+- Ideal for understanding concepts, analyzing piped input, or getting explanations
+
+Example: `ask -g explain how rust ownership works` returns a detailed explanation
+
+### Piped Input
+
+When you pipe data to `ask`, it's automatically included as context for your question:
+
+- Works in both shell and general modes
+- Particularly useful with `-g` for analyzing logs, code diffs, or other text
+- Example: `git diff | ask -g summarize these changes`
 
 ## Command Line Options
 
-- `-g`, `--general`: Enable general question mode (no shell command prompt, no clipboard)
+- `-g`, `--general`: Enable general question mode (see "How It Works" above)
 - `--output-format <FORMAT>`: Specify output format to pass to Claude CLI
-- `<QUESTION>...`: The question to ask (if not provided, will prompt interactively)
+- `<QUESTION>...`: Your question (if omitted, will prompt interactively)
 
 ## Notes
 
