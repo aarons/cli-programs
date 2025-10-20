@@ -15,9 +15,9 @@ struct Args {
     #[arg(short, long)]
     squash: bool,
 
-    /// Main branch name (defaults to 'main')
-    #[arg(short, long, default_value = "main")]
-    main_branch: String,
+    /// Target branch name (defaults to 'main')
+    #[arg(short = 't', long, default_value = "main")]
+    target_branch: String,
 }
 
 fn main() {
@@ -35,7 +35,7 @@ fn run() -> Result<()> {
     check_in_git_repo()?;
 
     // Determine feature branch
-    let feature_branch = determine_feature_branch(args.branch, &args.main_branch)?;
+    let feature_branch = determine_feature_branch(args.branch, &args.target_branch)?;
     println!("Feature branch: {}", feature_branch);
 
     // Push feature branch to origin
@@ -43,33 +43,33 @@ fn run() -> Result<()> {
     push_branch(&feature_branch)?;
 
     // Switch to main branch
-    println!("Checking out '{}'...", args.main_branch);
-    checkout_branch(&args.main_branch)?;
+    println!("Checking out '{}'...", args.target_branch);
+    checkout_branch(&args.target_branch)?;
 
     // Update main branch
     println!("Fetching updates from origin...");
     run_git_command(&["fetch", "origin"])?;
 
-    println!("Pulling latest changes for '{}'...", args.main_branch);
-    run_git_command(&["pull", "origin", &args.main_branch])?;
+    println!("Pulling latest changes for '{}'...", args.target_branch);
+    run_git_command(&["pull", "origin", &args.target_branch])?;
 
     // Check for clean status
     if !is_git_status_clean()? {
         bail!(
             "Git status is not clean after pulling '{}'. Manual intervention required.",
-            args.main_branch
+            args.target_branch
         );
     }
 
     // Perform merge
     if args.squash {
-        perform_squash_merge(&feature_branch, &args.main_branch)?;
+        perform_squash_merge(&feature_branch, &args.target_branch)?;
     } else {
         perform_simple_merge(&feature_branch)?;
     }
 
-    println!("Pushing '{}' to origin...", args.main_branch);
-    push_branch(&args.main_branch)?;
+    println!("Pushing '{}' to origin...", args.target_branch);
+    push_branch(&args.target_branch)?;
 
     println!("Merge process completed successfully.");
     Ok(())

@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.1.0] - 2025-10-20
+
+### Changed
+- Renamed `--main-branch` flag to `--target-branch` for clearer intent
+- Updated short flag from `-m` to `-t` for target branch specification
+
 ## [1.0.0] - 2025-10-20
 
 ### Added

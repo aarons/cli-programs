@@ -40,7 +40,7 @@ This will:
 ## CLI Flags
 
 - `--squash`, `-s` - Perform a squash merge instead of a regular merge
-- `--main-branch <NAME>`, `-m` - Specify main branch name (default: "main")
+- `--target-branch <NAME>`, `-t` - Specify target branch name (default: "main")
 - `<BRANCH>` - Feature branch to merge (defaults to current branch)
 
 ## Usage
@@ -63,9 +63,9 @@ git-merge --squash
 ```
 Squash merges current branch, generates AI commit message using `gc`.
 
-### Squash merge with custom main branch
+### Squash merge with custom target branch
 ```bash
-git-merge --squash --main-branch develop
+git-merge --squash --target-branch develop
 ```
 Squash merges into 'develop' instead of 'main'.
 
@@ -74,33 +74,6 @@ Squash merges into 'develop' instead of 'main'.
 - Git must be installed and repository initialized
 - For squash merges: `gc` must be available in PATH (install from this workspace)
 - Current branch must not be the main branch (unless specifying branch explicitly)
-
-## Architecture
-
-**Entry Point:** `src/main.rs`
-
-### Core Flow
-
-1. **Prerequisites Check** - Validates git installation and repository status
-2. **Branch Detection** - Determines feature branch (current or specified)
-3. **Push Branch** - Ensures remote has latest feature branch changes
-4. **Update Main** - Switches to main, fetches, and pulls latest changes
-5. **Merge** - Performs either simple or squash merge based on flags
-6. **Push Main** - Pushes merged changes to origin
-7. **Cleanup** - Deletes local feature branch after successful merge
-
-### Merge Modes
-
-**Simple Merge** (`perform_simple_merge()`)
-- Standard git merge: `git merge <feature-branch>`
-- Preserves all commits from feature branch
-- Deletes local branch with `-d` (safe delete, only if fully merged)
-
-**Squash Merge** (`perform_squash_merge()`)
-- Squash merges all commits: `git merge --squash <feature-branch>`
-- Gathers commit history from feature branch
-- Uses `gc` with branch history as context for commit message generation
-- Force deletes local branch with `-D` after successful commit
 
 ### Error Handling
 
