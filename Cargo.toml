@@ -1,5 +1,5 @@
 [workspace]
-members = ["ask", "gc", "git-clean", "update-cli-programs", "changelog-validator"]
+members = ["ask", "gc", "git-clean", "git-merge", "update-cli-programs", "changelog-validator"]
 resolver = "2"
 
 # Shared dependencies across all tools

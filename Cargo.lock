@@ -317,6 +317,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "git-merge"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+]
+
+[[package]]
 name = "git2"
 version = "0.20.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
