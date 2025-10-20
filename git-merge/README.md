@@ -17,7 +17,8 @@ This will:
 2. Switch to main
 3. Pull latest changes from origin
 4. Merge the feature branch into main
-5. Delete the local feature branch (if merge successful)
+5. Push main to origin
+6. Delete the local feature branch (if merge successful)
 
 ### Squash Merge
 
@@ -33,7 +34,8 @@ This will:
 3. Pull latest changes from origin
 4. Squash merge the feature branch
 5. Use `gc` to generate a commit message based on branch history
-6. Delete the local feature branch
+6. Push main to origin
+7. Delete the local feature branch
 
 ## CLI Flags
 
@@ -84,7 +86,8 @@ Squash merges into 'develop' instead of 'main'.
 3. **Push Branch** - Ensures remote has latest feature branch changes
 4. **Update Main** - Switches to main, fetches, and pulls latest changes
 5. **Merge** - Performs either simple or squash merge based on flags
-6. **Cleanup** - Deletes local feature branch after successful merge
+6. **Push Main** - Pushes merged changes to origin
+7. **Cleanup** - Deletes local feature branch after successful merge
 
 ### Merge Modes
 

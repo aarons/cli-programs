@@ -68,6 +68,9 @@ fn run() -> Result<()> {
         perform_simple_merge(&feature_branch)?;
     }
 
+    println!("Pushing '{}' to origin...", args.main_branch);
+    push_branch(&args.main_branch)?;
+
     println!("Merge process completed successfully.");
     Ok(())
 }

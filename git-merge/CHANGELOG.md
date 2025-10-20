@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.0] - 2025-10-20
+
+### Added
+- Automatic push of main branch to origin after successful merge
+
 ## [0.1.0] - 2025-10-20
 
 ### Added
