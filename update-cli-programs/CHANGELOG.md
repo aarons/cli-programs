@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.0] - 2025-10-20
+
+### Fixed
+- Tool can now be run from any directory instead of requiring execution from the repository root
+
+---
+
 ## [1.3.0] - 2025-10-17
 
 ### Changed

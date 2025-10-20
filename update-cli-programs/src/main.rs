@@ -6,6 +6,8 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+const WORKSPACE_ROOT: &str = env!("CARGO_MANIFEST_DIR");
+
 const EXCLUDED_PACKAGES: &[&str] = &[
     "changelog-validator",
 ];
@@ -32,6 +34,10 @@ struct Workspace {
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
+    let workspace_root = Path::new(WORKSPACE_ROOT)
+        .parent()
+        .context("Failed to determine workspace root")?;
+
     // Determine target directory
     let target_dir = cli.target.unwrap_or_else(|| {
         let home = std::env::var("HOME").expect("HOME environment variable not set");
@@ -43,8 +49,8 @@ fn main() -> Result<()> {
         .context("Failed to create target directory")?;
 
     // Read workspace Cargo.toml
-    let workspace_toml_path = Path::new("Cargo.toml");
-    let workspace_toml_content = fs::read_to_string(workspace_toml_path)
+    let workspace_toml_path = workspace_root.join("Cargo.toml");
+    let workspace_toml_content = fs::read_to_string(&workspace_toml_path)
         .context("Failed to read workspace Cargo.toml")?;
 
     let workspace_toml: WorkspaceToml = toml::from_str(&workspace_toml_content)
@@ -65,9 +71,9 @@ fn main() -> Result<()> {
 
     println!("Building Rust tools...");
 
-    // Build all release binaries
     let build_status = Command::new("cargo")
         .args(&["build", "--release", "--workspace"])
+        .current_dir(workspace_root)
         .status()
         .context("Failed to run cargo build")?;
 
@@ -79,7 +85,8 @@ fn main() -> Result<()> {
 
     // Install each program
     for program in &programs {
-        let binary_path = Path::new("target")
+        let binary_path = workspace_root
+            .join("target")
             .join("release")
             .join(program);
 
