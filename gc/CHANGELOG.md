@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.1] - 2025-10-20
+
+### Fixed
+- URL detection no longer triggers false positives on words ending with periods at end of sentences
+
 ## [1.0.0] - 2025-10-17
 
 ### Added

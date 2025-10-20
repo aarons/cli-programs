@@ -378,6 +378,9 @@ fn check_policy_violations(message: &str) -> Vec<String> {
 
     if message.split_whitespace()
         .any(|word| {
+            // Strip trailing period (end of sentence punctuation)
+            let word = word.strip_suffix('.').unwrap_or(word);
+
             // Skip if word is an exact match for a filename in the repo
             if repo_filenames.contains(word) {
                 return false;
@@ -875,5 +878,32 @@ feat: add user authentication
         let violations = check_policy_violations(msg);
         assert!(!violations.contains(&"Contains URL".to_string()),
             "Filename with dot should not be flagged as domain");
+    }
+
+    #[test]
+    fn test_trailing_period_handling() {
+        // Words ending with period (end of sentence) should not be flagged as URLs
+        let msg = "fix: resolve workspace root to enable execution from any directory. Previously relied on relative paths which only worked when executed from workspace root.";
+        let violations = check_policy_violations(msg);
+        assert!(!violations.contains(&"Contains URL".to_string()),
+            "Words with trailing periods at end of sentence should not be flagged as URLs");
+
+        // But actual domains at end of sentence should still be caught
+        let msg_with_domain = "fix: see documentation at example.com.";
+        let violations = check_policy_violations(msg_with_domain);
+        assert!(violations.contains(&"Contains URL".to_string()),
+            "Actual domain with trailing period should still be flagged");
+
+        // Multiple sentences with various words ending in periods
+        let msg_multiple = "feat: add new feature. Update configuration. Test everything.";
+        let violations = check_policy_violations(msg_multiple);
+        assert!(!violations.contains(&"Contains URL".to_string()),
+            "Regular words ending sentences should not be flagged");
+
+        // Mixed: filename with trailing period should not be flagged
+        let msg_filename = "fix: update Cargo.toml.";
+        let violations = check_policy_violations(msg_filename);
+        assert!(!violations.contains(&"Contains URL".to_string()),
+            "Filename with trailing period should not be flagged");
     }
 }
