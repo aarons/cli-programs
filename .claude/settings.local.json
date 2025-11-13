@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(cargo test -p changelog-validator)"
+      "Bash(cargo test -p changelog-validator)",
+      "Bash(cargo test:*)",
+      "Bash(cargo build:*)"
     ],
     "deny": [],
     "ask": []

@@ -24,3 +24,7 @@
 #temp files
 /tmp
 /tmp/*
+
+# Logs directory
+/logs/
+/logs/*

@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.1] - 2025-11-13
+
+### Fixed
+- Text processing now handles invisible Unicode characters that can appear when copying text from certain applications (e.g., zero-width spaces, object replacement characters)
+
 ## [0.1.0] - 2025-11-13
 
 ### Added

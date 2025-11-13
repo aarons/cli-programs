@@ -5,6 +5,7 @@ Process text input and automatically add reminders to macOS Reminders app. Suppo
 ## Example
 
 ```bash
+# Using the --todos flag
 $ add-reminders -t "- [ ] practice stepping back
 	- [ ] stand up and stretch when needed
 do another load of laundry"
@@ -13,18 +14,57 @@ do another load of laundry"
 ✓ Added: do another load of laundry
 
 Successfully added 3 reminder(s) to 'inbox'
+
+# Using stdin (pipe or redirect)
+$ echo "- [ ] call dentist" | add-reminders
+✓ Added: call dentist
+
+Successfully added 1 reminder(s) to 'inbox'
 ```
 
 ## CLI Flags
 
-- `-t, --todos <TEXT>` - (Required) The text containing todos to add, one per line
+- `-t, --todos <TEXT>` - The text containing todos to add, one per line. If not provided, reads from stdin.
 - `-l, --list <NAME>` - The Reminders list to add to (default: "inbox")
+- `-v, --verbose` - Show detailed processing information (input text, processed output, etc.)
+
+## Logging
+
+All runs are automatically logged to `logs/add-reminders.log` in the cli-programs project directory. The log file automatically truncates when it exceeds 1MB.
+
+**Log Location:** `~/code/cli-programs/logs/add-reminders.log` (or wherever you cloned the repo). The exact path is displayed when using `-v` (verbose mode), or when no todos are found.
+
+**What's Logged:**
+- Input parameters and text received
+- Each line processing step (what matched, what was skipped, and why)
+- AppleScript commands executed
+- Success/failure of each reminder creation
+- Timestamps for all operations
+
+**View the log:**
+```bash
+# The log path is shown when running with -v flag
+add-reminders -t "test" -v
+
+# Or directly view it from the project directory:
+tail -f ~/code/cli-programs/logs/add-reminders.log
+
+# Follow the log in real-time while running commands:
+tail -f ~/code/cli-programs/logs/add-reminders.log &
+add-reminders -t "test todo"
+```
+
+The log is especially useful for debugging when todos aren't being parsed as expected. The `/logs` directory is excluded from git via `.gitignore`.
 
 ## Usage
 
 ### Basic usage with default inbox list
 ```bash
+# Using flag
 add-reminders -t "do another load of laundry"
+
+# Using stdin
+echo "do another load of laundry" | add-reminders
 ```
 
 ### Specify a different list
@@ -40,14 +80,45 @@ add-reminders -t "- [ ] first task
 - [ ] third task" -l "work"
 ```
 
+### Using with macOS Automator (Quick Action)
+
+To create a "Send to Reminders" service:
+
+1. Open **Automator** and create a new **Quick Action**
+2. Set "Workflow receives current" to **text** in **any application**
+3. Add a **Run Shell Script** action with these settings:
+   - Shell: `/bin/bash`
+   - Pass input: **as stdin** (this is key!)
+   - Script: `/Users/YOUR_USERNAME/.local/bin/add-reminders`
+
+Now you can select text anywhere, right-click, and choose "Send to Reminders" from the Services menu.
+
+**Alternative Automator setup** (if you want to specify a list):
+```bash
+/Users/YOUR_USERNAME/.local/bin/add-reminders --list "work"
+```
+
+### Debug with verbose output
+```bash
+add-reminders -t "- [ ] test todo
+    - [ ] nested todo" -v
+```
+
+This will show:
+- Raw input text received
+- Each line before processing
+- Each todo after processing (with markers removed)
+- Confirmation of each reminder added
+
 ## Text Processing Rules
 
 The tool processes input text according to these rules:
 
 1. **One todo per line** - Each newline creates a separate reminder
-2. **Remove indentation** - Leading spaces and tabs are stripped from all todos
-3. **Remove markdown todo markers** - Patterns like `- [ ]` and `- [x]` are removed
-4. **Skip empty lines** - Blank lines are ignored
+2. **Remove invisible Unicode characters** - Strips invisible characters like zero-width spaces (U+200B) and object replacement characters (U+FFFC) that can appear when copying text from some applications
+3. **Remove indentation** - Leading spaces and tabs are stripped from all todos
+4. **Remove markdown todo markers** - Patterns like `- [ ]` and `- [x]` are removed
+5. **Skip empty lines** - Blank lines are ignored
 
 ### Processing Example
 
@@ -85,8 +156,9 @@ change the sheets
 
 ### Key Components
 
-**Text Processing** (`process_line()`, `process_todos()`)
-- Regex-based markdown todo marker removal: `^-\s*\[[^\]]*\]\s*`
+**Text Processing** (`strip_leading_junk()`, `process_line()`, `process_todos()`)
+- Unicode cleanup: Strips invisible characters (zero-width spaces, object replacement characters, etc.) by finding the first alphanumeric character
+- Regex-based markdown todo marker removal: Handles various formats including `- [ ]`, `- [x]`, `* [ ]`, numbered lists, and partial syntax
 - Whitespace normalization
 - Empty line filtering
 
