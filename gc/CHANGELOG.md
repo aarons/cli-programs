@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.2] - 2025-11-22
+
+### Fixed
+- Crash when running in a freshly initialized repository (initial commit) by handling unborn branches gracefully
+
 ## [1.0.1] - 2025-10-20
 
 ### Fixed
