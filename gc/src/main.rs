@@ -141,8 +141,15 @@ fn get_status() -> Result<String> {
 }
 
 fn get_current_branch() -> Result<String> {
-    git(&["rev-parse", "--abbrev-ref", "HEAD"])
-        .map(|s| s.trim().to_string())
+    // Try symbolic-ref first (handles unborn branches like in initial commit)
+    match git(&["symbolic-ref", "--short", "HEAD"]) {
+        Ok(branch) => Ok(branch.trim().to_string()),
+        Err(_) => {
+            // Fallback for detached HEAD state or other issues
+            git(&["rev-parse", "--abbrev-ref", "HEAD"])
+                .map(|s| s.trim().to_string())
+        }
+    }
 }
 
 /// Detect main branch (main or master)
@@ -178,7 +185,11 @@ fn get_branch_commits(current_branch: &str, main_branch: &str) -> Result<String>
         }
         Err(_) => {
             // Fallback to simple commit history
-            git(&["log", "--pretty=format:%ad - %s", "--date=short", "-n", "5"])
+            // Use match to handle case where git log fails (e.g. empty repo with no commits yet)
+            match git(&["log", "--pretty=format:%ad - %s", "--date=short", "-n", "5"]) {
+                Ok(logs) => Ok(logs),
+                Err(_) => Ok("Initial commit".to_string()),
+            }
         }
     }
 }
