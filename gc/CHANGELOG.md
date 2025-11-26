@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.1.0] - 2025-11-25
+
+### Added
+- Multi-LLM provider support via new llm-client shared crate
+- Support for Anthropic API, OpenRouter, and Cerebras providers (in addition to Claude CLI)
+- `--model <preset>` flag to override default model preset
+- `gc config` subcommands for managing LLM configuration:
+  - `gc config list` - Show available presets
+  - `gc config show` - Display full configuration
+  - `gc config set-default <preset>` - Change default preset
+  - `gc config add-preset <name> -p <provider> -M <model>` - Add new preset
+- Configuration file at `~/.config/gc/config.toml`
+
+### Changed
+- Converted to async runtime using tokio
+- LLM interaction now uses llm-client crate instead of direct Claude CLI calls
+
 ## [1.0.1] - 2025-10-20
 
 ### Fixed
