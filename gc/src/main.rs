@@ -1,17 +1,20 @@
 // gc - Git commit with AI-generated conventional commit messages
 
+mod llm;
 mod prompts;
 
 use addr::parse_domain_name;
 use anyhow::{Context, Result};
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use email_address::EmailAddress;
+use git2::Repository;
 use git_conventional::Commit;
+use llm::LlmClient;
+use llm_client::{Config, ModelPreset};
 use std::collections::HashSet;
 use std::path::Path;
 use std::process::Command;
 use unicode_segmentation::UnicodeSegmentation;
-use git2::Repository;
 use url::Url;
 
 #[derive(Parser, Debug)]
@@ -35,9 +38,50 @@ struct Args {
     #[arg(short, long)]
     context: Option<String>,
 
+    /// Model preset to use (overrides default from config)
+    #[arg(short, long)]
+    model: Option<String>,
+
+    /// Configuration subcommand
+    #[command(subcommand)]
+    command: Option<Commands>,
+
     /// High-level description of changes to guide the commit message
     #[arg(trailing_var_arg = true)]
     message: Vec<String>,
+}
+
+#[derive(Subcommand, Debug)]
+enum Commands {
+    /// Configuration management
+    Config {
+        #[command(subcommand)]
+        action: ConfigAction,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+enum ConfigAction {
+    /// Set the default model preset
+    SetDefault {
+        /// Name of the preset to use as default
+        preset: String,
+    },
+    /// List available presets
+    List,
+    /// Show current configuration
+    Show,
+    /// Add a new preset
+    AddPreset {
+        /// Preset name
+        name: String,
+        /// Provider (claude-cli, anthropic, openrouter, cerebras)
+        #[arg(short, long)]
+        provider: String,
+        /// Model identifier
+        #[arg(short = 'M', long)]
+        model: String,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -85,23 +129,6 @@ fn is_git_repo() -> bool {
     Repository::open(".").is_ok()
 }
 
-/// Check if Claude CLI is available and executable
-fn check_claude_cli() -> Result<()> {
-    let output = Command::new("which")
-        .arg("claude")
-        .output()
-        .context("Failed to check for claude CLI")?;
-
-    if !output.status.success() {
-        anyhow::bail!(
-            "Claude CLI not found.\n\
-             Please ensure Claude Code is installed.\n\
-             You can install it by following: https://docs.anthropic.com/en/docs/claude-code"
-        );
-    }
-
-    Ok(())
-}
 
 /// Get staged diff with specific formatting flags (matches gc.sh behavior)
 fn get_staged_diff() -> Result<String> {
@@ -230,28 +257,6 @@ fn get_repo_filenames() -> Result<HashSet<String>> {
 // LLM interaction functions
 const MAX_RETRIES: usize = 3;
 
-/// Call Claude CLI and get response
-fn call_claude(prompt: &str, system_prompt: &str) -> Result<String> {
-    let output = Command::new("claude")
-        .args([
-            "--model", "sonnet",
-            "--system-prompt", system_prompt,
-            "--print",
-            prompt,
-        ])
-        .output()
-        .context("Failed to execute claude command")?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        anyhow::bail!("Claude command failed: {}", stderr);
-    }
-
-    String::from_utf8(output.stdout)
-        .context("Invalid UTF-8 in claude output")
-        .map(|s| s.trim().to_string())
-}
-
 /// Parse LLM response into structured format
 /// Expected format:
 /// <observations>
@@ -291,7 +296,8 @@ fn extract_xml_tag(text: &str, tag: &str) -> Option<String> {
 }
 
 /// Generate commit message with retry logic inline in main flow
-fn generate_commit_message(
+async fn generate_commit_message(
+    llm: &LlmClient,
     prompt: &str,
     system_prompt: &str,
     debug: bool,
@@ -305,7 +311,7 @@ fn generate_commit_message(
             eprintln!("Attempt {}/{}", attempts, MAX_RETRIES);
         }
 
-        let response = call_claude(prompt, system_prompt)?;
+        let response = llm.complete(prompt, system_prompt).await?;
 
         if debug {
             eprintln!("Raw response:\n{}", response);
@@ -314,7 +320,11 @@ fn generate_commit_message(
         match parse_llm_response(response) {
             Ok(parsed) => return Ok(parsed),
             Err(e) if attempts >= MAX_RETRIES => {
-                anyhow::bail!("Failed to get properly formatted response after {} attempts: {}", MAX_RETRIES, e);
+                anyhow::bail!(
+                    "Failed to get properly formatted response after {} attempts: {}",
+                    MAX_RETRIES,
+                    e
+                );
             }
             Err(e) => {
                 if debug {
@@ -327,18 +337,20 @@ fn generate_commit_message(
 }
 
 /// Request LLM to fix commit message issues
-fn fix_commit_message(
+async fn fix_commit_message(
+    llm: &LlmClient,
     original_prompt: &str,
     previous_response: &str,
     system_prompt: &str,
     debug: bool,
 ) -> Result<LlmResponse> {
     let fix_prompt = prompts::fix_message_format(original_prompt, previous_response);
-    generate_commit_message(&fix_prompt, system_prompt, debug)
+    generate_commit_message(llm, &fix_prompt, system_prompt, debug).await
 }
 
 /// Request LLM to clean policy violations from message
-fn clean_commit_message(
+async fn clean_commit_message(
+    llm: &LlmClient,
     message: &str,
     system_prompt: &str,
     debug: bool,
@@ -349,7 +361,7 @@ fn clean_commit_message(
         eprintln!("Cleaning prompt:\n{}", clean_prompt);
     }
 
-    let response = call_claude(&clean_prompt, system_prompt)?;
+    let response = llm.complete(&clean_prompt, system_prompt).await?;
 
     if debug {
         eprintln!("Clean response:\n{}", response);
@@ -422,15 +434,75 @@ fn validate_conventional_commit(message: &str) -> ValidationResult {
     }
 }
 
-fn main() -> Result<()> {
+/// Handle config subcommands
+fn handle_config_command(action: &ConfigAction) -> Result<()> {
+    match action {
+        ConfigAction::SetDefault { preset } => {
+            let mut config = Config::load()?;
+            // Verify preset exists
+            config.get_preset(preset)?;
+            config.default_preset = preset.clone();
+            config.save()?;
+            println!("Default preset set to: {}", preset);
+        }
+        ConfigAction::List => {
+            let config = Config::load()?;
+            println!("Available presets:");
+            for (name, preset) in &config.presets {
+                let default_marker = if name == &config.default_preset {
+                    " (default)"
+                } else {
+                    ""
+                };
+                println!("  {} - {} / {}{}", name, preset.provider, preset.model, default_marker);
+            }
+        }
+        ConfigAction::Show => {
+            let config = Config::load()?;
+            let path = Config::config_path()?;
+            println!("Config file: {}", path.display());
+            println!();
+            let content = toml::to_string_pretty(&config)
+                .context("Failed to serialize config")?;
+            println!("{}", content);
+        }
+        ConfigAction::AddPreset {
+            name,
+            provider,
+            model,
+        } => {
+            let mut config = Config::load()?;
+            config.presets.insert(
+                name.clone(),
+                ModelPreset {
+                    provider: provider.clone(),
+                    model: model.clone(),
+                    temperature: None,
+                    max_tokens: None,
+                },
+            );
+            config.save()?;
+            println!("Added preset: {}", name);
+        }
+    }
+    Ok(())
+}
+
+#[tokio::main]
+async fn main() -> Result<()> {
     let args = Args::parse();
 
-    // Prerequisites validation
-    check_claude_cli()?;
+    // Handle config subcommands first
+    if let Some(Commands::Config { action }) = &args.command {
+        return handle_config_command(action);
+    }
 
     if !is_git_repo() {
         anyhow::bail!("Not in a git repository. Please run this command from within a git repository.");
     }
+
+    // Initialize LLM client with selected preset
+    let llm = LlmClient::new(args.model.as_deref(), args.debug)?;
 
     // Check for changes and stage if needed
     if args.staged {
@@ -519,30 +591,34 @@ fn main() -> Result<()> {
         git_diff
     ));
 
-    println!("Generating commit message with Claude Code");
+    println!("Generating commit message with {}", llm.provider_name());
 
     // Generate commit message
     let prompt = prompts::generate_commit_prompt(&context);
 
-    let mut llm_response = generate_commit_message(
-        &prompt,
-        &prompts::SYSTEM_PROMPT,
-        args.debug,
-    ).context("Failed to generate commit message")?;
+    let mut llm_response = generate_commit_message(&llm, &prompt, &prompts::SYSTEM_PROMPT, args.debug)
+        .await
+        .context("Failed to generate commit message")?;
 
     let mut commit_message = llm_response.message.clone();
 
     let format_validation = validate_conventional_commit(&commit_message);
     if !format_validation.is_valid() {
         if args.debug {
-            eprintln!("Warning: Commit message format issues: {:?}", format_validation.errors());
+            eprintln!(
+                "Warning: Commit message format issues: {:?}",
+                format_validation.errors()
+            );
         }
         llm_response = fix_commit_message(
+            &llm,
             &prompt,
             &llm_response.raw_response,
             &prompts::SYSTEM_PROMPT,
             args.debug,
-        ).context("Failed to fix commit message format")?;
+        )
+        .await
+        .context("Failed to fix commit message format")?;
 
         commit_message = llm_response.message.clone();
     }
@@ -559,21 +635,31 @@ fn main() -> Result<()> {
 
         clean_attempts += 1;
         if clean_attempts > MAX_CLEAN_ATTEMPTS {
-            eprintln!("Error: Message still contains policy violations after {} attempts. Cannot proceed.", MAX_CLEAN_ATTEMPTS);
+            eprintln!(
+                "Error: Message still contains policy violations after {} attempts. Cannot proceed.",
+                MAX_CLEAN_ATTEMPTS
+            );
             eprintln!("Final message:\n{}", commit_message);
-            anyhow::bail!("Message validation failed after {} cleaning attempts", MAX_CLEAN_ATTEMPTS);
+            anyhow::bail!(
+                "Message validation failed after {} cleaning attempts",
+                MAX_CLEAN_ATTEMPTS
+            );
         }
 
-        eprintln!("Warning: Commit message contains policy violations: {}", violations.join(", "));
+        eprintln!(
+            "Warning: Commit message contains policy violations: {}",
+            violations.join(", ")
+        );
         eprintln!("{}", commit_message);
         eprintln!();
-        eprintln!("Cleaning attempt {} of {}...", clean_attempts, MAX_CLEAN_ATTEMPTS);
+        eprintln!(
+            "Cleaning attempt {} of {}...",
+            clean_attempts, MAX_CLEAN_ATTEMPTS
+        );
 
-        llm_response = clean_commit_message(
-            &commit_message,
-            &prompts::SYSTEM_PROMPT,
-            args.debug,
-        ).context("Failed to clean commit message")?;
+        llm_response = clean_commit_message(&llm, &commit_message, &prompts::SYSTEM_PROMPT, args.debug)
+            .await
+            .context("Failed to clean commit message")?;
 
         commit_message = llm_response.message.clone();
     }
