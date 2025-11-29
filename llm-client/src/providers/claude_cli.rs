@@ -1,3 +1,7 @@
+//! Claude CLI provider
+//!
+//! Uses the installed Claude Code CLI as a subprocess.
+
 use async_trait::async_trait;
 use std::path::PathBuf;
 use tokio::process::Command;
@@ -13,20 +17,33 @@ pub struct ClaudeCliProvider {
 
 impl ClaudeCliProvider {
     /// Create a new Claude CLI provider
+    ///
+    /// Returns an error if the Claude CLI is not found.
     pub fn new(model: &str, cli_path: Option<PathBuf>) -> Result<Self> {
-        let cli_path = cli_path.unwrap_or_else(|| {
-            // Try to find claude in PATH
-            which::which("claude").unwrap_or_else(|_| PathBuf::from("claude"))
-        });
+        let cli_path = match cli_path {
+            Some(path) => {
+                if !path.exists() {
+                    return Err(LlmError::ProviderUnavailable(format!(
+                        "Claude CLI not found at specified path: {}",
+                        path.display()
+                    )));
+                }
+                path
+            }
+            None => {
+                // Try to find claude in PATH
+                which::which("claude").map_err(|_| {
+                    LlmError::ProviderUnavailable(
+                        "Claude CLI not found. Install from https://docs.anthropic.com/en/docs/claude-code".into()
+                    )
+                })?
+            }
+        };
 
         Ok(Self {
             model: model.to_string(),
             cli_path,
         })
-    }
-
-    fn cli_exists(&self) -> bool {
-        self.cli_path.exists() || which::which("claude").is_ok()
     }
 }
 
@@ -73,13 +90,7 @@ impl LlmProvider for ClaudeCliProvider {
     }
 
     fn is_available(&self) -> Result<()> {
-        if self.cli_exists() {
-            Ok(())
-        } else {
-            Err(LlmError::ProviderUnavailable(
-                "Claude CLI not found. Install from https://docs.anthropic.com/en/docs/claude-code"
-                    .into(),
-            ))
-        }
+        // Availability was checked in constructor
+        Ok(())
     }
 }

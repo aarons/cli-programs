@@ -29,12 +29,6 @@ impl LlmClient {
             preset.provider, preset_name
         ))?;
 
-        // Verify provider is available
-        provider.is_available().context(format!(
-            "Provider '{}' is not available",
-            provider.name()
-        ))?;
-
         if debug {
             eprintln!(
                 "Using LLM provider: {} (model: {})",

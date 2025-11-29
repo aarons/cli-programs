@@ -1,12 +1,12 @@
+//! LLM provider implementations
+
 mod anthropic;
-mod cerebras;
 mod claude_cli;
-mod openrouter;
+mod openai_compatible;
 
 pub use anthropic::AnthropicProvider;
-pub use cerebras::CerebrasProvider;
 pub use claude_cli::ClaudeCliProvider;
-pub use openrouter::OpenRouterProvider;
+pub use openai_compatible::OpenAICompatibleProvider;
 
 use crate::config::{ModelPreset, ProviderConfig};
 use crate::error::{LlmError, Result};
@@ -62,11 +62,17 @@ pub fn get_provider(
         }
         ProviderKind::OpenRouter => {
             let api_key = get_api_key(provider_config, "OPENROUTER_API_KEY", "OpenRouter")?;
-            Ok(Box::new(OpenRouterProvider::new(&preset.model, api_key)?))
+            Ok(Box::new(OpenAICompatibleProvider::openrouter(
+                &preset.model,
+                api_key,
+            )?))
         }
         ProviderKind::Cerebras => {
             let api_key = get_api_key(provider_config, "CEREBRAS_API_KEY", "Cerebras")?;
-            Ok(Box::new(CerebrasProvider::new(&preset.model, api_key)?))
+            Ok(Box::new(OpenAICompatibleProvider::cerebras(
+                &preset.model,
+                api_key,
+            )?))
         }
     }
 }
