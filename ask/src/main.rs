@@ -4,7 +4,8 @@ use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use llm::LlmClient;
 use llm_client::{Config, ModelPreset};
-use std::io::{self, IsTerminal, Read, Write};
+use std::io::{self, BufRead, IsTerminal, Read, Write};
+use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
 const SHELL_SYSTEM_PROMPT: &str = "This is a user question directly from their MacOS command line. Respond with a single example of a solution to their question. Important: Only provide valid zsh bash commands, do not use markup such as triple backticks.";
@@ -45,6 +46,19 @@ enum Commands {
         #[command(subcommand)]
         action: ConfigAction,
     },
+    /// Shell integration setup
+    Setup {
+        #[command(subcommand)]
+        action: Option<SetupAction>,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+enum SetupAction {
+    /// Check if shell integration is installed
+    Check,
+    /// Install shell integration to your shell config
+    Install,
 }
 
 #[derive(Subcommand, Debug)]
@@ -124,6 +138,113 @@ fn handle_config_command(action: &ConfigAction) -> Result<()> {
     Ok(())
 }
 
+/// Get shell name and RC file path
+fn get_shell_info() -> Option<(&'static str, PathBuf)> {
+    let shell = std::env::var("SHELL").ok()?;
+    let shell_name = std::path::Path::new(&shell)
+        .file_name()?
+        .to_str()?;
+    let home = std::env::var("HOME").ok()?;
+
+    match shell_name {
+        "zsh" => Some(("zsh", PathBuf::from(home).join(".zshrc"))),
+        "bash" => Some(("bash", PathBuf::from(home).join(".bashrc"))),
+        _ => None,
+    }
+}
+
+/// Check if shell integration is installed
+fn check_shell_integration() -> Result<bool> {
+    let Some((shell_name, rc_file)) = get_shell_info() else {
+        println!("Unknown shell. Supported shells: zsh, bash");
+        return Ok(false);
+    };
+
+    println!("Shell: {}", shell_name);
+    println!("Config: {}", rc_file.display());
+
+    if !rc_file.exists() {
+        println!("\nStatus: Shell config file not found");
+        return Ok(false);
+    }
+
+    let content = std::fs::read_to_string(&rc_file)?;
+    let has_integration = content.contains("alias ask=")
+        || content.contains("ask()")
+        || content.contains("ask ()");
+
+    if has_integration {
+        println!("\nStatus: Shell integration is installed");
+        Ok(true)
+    } else {
+        println!("\nStatus: Shell integration is NOT installed");
+        println!("\nWithout shell integration, you need to quote special characters:");
+        println!("  ask 'how do I find files matching *.txt?'");
+        println!("\nWith shell integration, quotes are optional:");
+        println!("  ask how do I find files matching *.txt?");
+        Ok(false)
+    }
+}
+
+/// Install shell integration
+fn install_shell_integration() -> Result<()> {
+    let Some((shell_name, rc_file)) = get_shell_info() else {
+        anyhow::bail!("Unknown shell. Supported shells: zsh, bash");
+    };
+
+    // Check if already installed
+    if rc_file.exists() {
+        let content = std::fs::read_to_string(&rc_file)?;
+        if content.contains("alias ask=") || content.contains("ask()") || content.contains("ask ()") {
+            println!("Shell integration is already installed in {}", rc_file.display());
+            return Ok(());
+        }
+    }
+
+    let integration = match shell_name {
+        "zsh" => "\n# ask shell integration - handle special characters without quoting\nalias ask='noglob command ask'\n",
+        "bash" => "\n# ask shell integration - handle special characters without quoting\nask() {\n  set -f\n  command ask \"$@\"\n  local ret=$?\n  set +f\n  return $ret\n}\n",
+        _ => unreachable!(),
+    };
+
+    println!("This will add the following to {}:", rc_file.display());
+    println!("{}", integration);
+
+    eprint!("Proceed? [y/N] ");
+    io::stderr().flush().ok();
+
+    let mut response = String::new();
+    io::stdin().lock().read_line(&mut response)?;
+
+    if response.trim().eq_ignore_ascii_case("y") {
+        use std::fs::OpenOptions;
+        let mut file = OpenOptions::new()
+            .append(true)
+            .create(true)
+            .open(&rc_file)?;
+        file.write_all(integration.as_bytes())?;
+        println!("\nInstalled! Run this to activate:");
+        println!("  source {}", rc_file.display());
+    } else {
+        println!("Aborted.");
+    }
+
+    Ok(())
+}
+
+/// Handle setup subcommands
+fn handle_setup_command(action: Option<&SetupAction>) -> Result<()> {
+    match action {
+        Some(SetupAction::Check) | None => {
+            check_shell_integration()?;
+        }
+        Some(SetupAction::Install) => {
+            install_shell_integration()?;
+        }
+    }
+    Ok(())
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let args = Args::parse();
@@ -131,6 +252,11 @@ async fn main() -> Result<()> {
     // Handle config subcommands first (before LLM initialization)
     if let Some(Commands::Config { action }) = &args.command {
         return handle_config_command(action);
+    }
+
+    // Handle setup subcommand
+    if let Some(Commands::Setup { action }) = &args.command {
+        return handle_setup_command(action.as_ref());
     }
 
     // Get the question from args

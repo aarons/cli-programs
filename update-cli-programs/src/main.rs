@@ -38,10 +38,11 @@ fn main() -> Result<()> {
         .parent()
         .context("Failed to determine workspace root")?;
 
+    let home = std::env::var("HOME").expect("HOME environment variable not set");
+
     // Determine target directory
     let target_dir = cli.target.unwrap_or_else(|| {
-        let home = std::env::var("HOME").expect("HOME environment variable not set");
-        PathBuf::from(home).join(".local").join("bin")
+        PathBuf::from(&home).join(".local").join("bin")
     });
 
     // Create target directory if it doesn't exist
@@ -111,5 +112,41 @@ fn main() -> Result<()> {
 
     println!("\nPrograms installed to {}", target_dir.display());
 
+    // Check for ask shell integration if ask was installed
+    if programs.contains(&"ask".to_string()) {
+        check_ask_shell_integration(&home);
+    }
+
     Ok(())
+}
+
+/// Check if the ask shell integration is set up
+fn check_ask_shell_integration(home: &str) {
+    let shell = std::env::var("SHELL").unwrap_or_default();
+    let shell_name = Path::new(&shell)
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or("");
+
+    let rc_file = match shell_name {
+        "zsh" => PathBuf::from(home).join(".zshrc"),
+        "bash" => PathBuf::from(home).join(".bashrc"),
+        _ => return, // Unknown shell, skip check
+    };
+
+    // Check if shell integration exists
+    if let Ok(content) = fs::read_to_string(&rc_file) {
+        // Look for the alias (zsh) or function (bash)
+        let has_integration = content.contains("alias ask=")
+            || content.contains("ask()")
+            || content.contains("ask ()");
+
+        if !has_integration {
+            println!();
+            println!("Tip: Set up shell integration for 'ask' to use special characters");
+            println!("     without quoting (e.g., ask how do I grep for foo?)");
+            println!();
+            println!("     Run: ask setup");
+        }
+    }
 }
