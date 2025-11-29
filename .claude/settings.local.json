@@ -1,11 +1,24 @@
 {
   "permissions": {
     "allow": [
-      "Bash(cargo test -p changelog-validator)",
-      "Bash(cargo test:*)",
-      "Bash(cargo build:*)"
+      "Bash",
+      "WebSearch",
+      "WebFetch(domain:docs.rs)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:github.com)"
     ],
-    "deny": [],
+    "deny": [
+      "Bash(rm -rf :*)",
+      "Bash(rm -r :*)",
+      "Bash(rm -f :*)",
+      "Bash(rmdir :*)",
+      "Bash(git push --force:*)",
+      "Bash(git reset --hard:*)",
+      "Bash(git clean -fd:*)",
+      "Bash(chmod -R 777:*)",
+      "Bash(dd :*)",
+      "Bash(mkfs:*)"
+    ],
     "ask": []
   }
 }
