@@ -1,6 +1,9 @@
-//! Anthropic API provider
+//! OpenAI-compatible API provider
 //!
-//! Direct HTTP implementation for the Anthropic Messages API.
+//! Used for providers that implement the OpenAI chat completions API:
+//! - OpenRouter
+//! - Cerebras
+//! - And others
 
 use async_trait::async_trait;
 use reqwest::Client;
@@ -9,37 +12,50 @@ use serde::{Deserialize, Serialize};
 use crate::error::{LlmError, Result};
 use crate::provider::{LlmProvider, LlmRequest, LlmResponse, TokenUsage};
 
-const ANTHROPIC_API_URL: &str = "https://api.anthropic.com/v1/messages";
-const ANTHROPIC_VERSION: &str = "2023-06-01";
-
-/// Provider for direct Anthropic API calls
-pub struct AnthropicProvider {
+/// Provider for OpenAI-compatible APIs
+pub struct OpenAICompatibleProvider {
     model: String,
+    base_url: String,
     api_key: String,
+    name: &'static str,
     client: Client,
 }
 
-impl AnthropicProvider {
-    /// Create a new Anthropic provider
-    pub fn new(model: &str, api_key: String) -> Result<Self> {
+impl OpenAICompatibleProvider {
+    /// Create a new OpenAI-compatible provider
+    pub fn new(
+        model: &str,
+        base_url: &str,
+        api_key: String,
+        name: &'static str,
+    ) -> Result<Self> {
         let client = Client::new();
 
         Ok(Self {
             model: model.to_string(),
+            base_url: base_url.trim_end_matches('/').to_string(),
             api_key,
+            name,
             client,
         })
     }
+
+    /// Create an OpenRouter provider
+    pub fn openrouter(model: &str, api_key: String) -> Result<Self> {
+        Self::new(model, "https://openrouter.ai/api/v1", api_key, "OpenRouter")
+    }
+
+    /// Create a Cerebras provider
+    pub fn cerebras(model: &str, api_key: String) -> Result<Self> {
+        Self::new(model, "https://api.cerebras.ai/v1", api_key, "Cerebras")
+    }
 }
 
-// Anthropic API request/response types
+// OpenAI API request/response types
 
 #[derive(Debug, Serialize)]
-struct MessagesRequest {
+struct ChatCompletionRequest {
     model: String,
-    max_tokens: u32,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    system: Option<String>,
     messages: Vec<Message>,
 }
 
@@ -50,20 +66,25 @@ struct Message {
 }
 
 #[derive(Debug, Deserialize)]
-struct MessagesResponse {
-    content: Vec<ContentBlock>,
-    usage: ResponseUsage,
+struct ChatCompletionResponse {
+    choices: Vec<Choice>,
+    usage: Option<Usage>,
 }
 
 #[derive(Debug, Deserialize)]
-struct ContentBlock {
-    text: String,
+struct Choice {
+    message: ResponseMessage,
 }
 
 #[derive(Debug, Deserialize)]
-struct ResponseUsage {
-    input_tokens: u32,
-    output_tokens: u32,
+struct ResponseMessage {
+    content: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct Usage {
+    prompt_tokens: u32,
+    completion_tokens: u32,
 }
 
 #[derive(Debug, Deserialize)]
@@ -77,27 +98,35 @@ struct ApiError {
 }
 
 #[async_trait]
-impl LlmProvider for AnthropicProvider {
+impl LlmProvider for OpenAICompatibleProvider {
     async fn complete(&self, request: LlmRequest) -> Result<LlmResponse> {
-        let messages = vec![Message {
+        let mut messages = Vec::new();
+
+        if let Some(system) = &request.system_prompt {
+            messages.push(Message {
+                role: "system".to_string(),
+                content: system.clone(),
+            });
+        }
+
+        messages.push(Message {
             role: "user".to_string(),
             content: request.prompt.clone(),
-        }];
+        });
 
-        let api_request = MessagesRequest {
+        let chat_request = ChatCompletionRequest {
             model: self.model.clone(),
-            max_tokens: request.max_tokens.unwrap_or(4096),
-            system: request.system_prompt.clone(),
             messages,
         };
 
+        let url = format!("{}/chat/completions", self.base_url);
+
         let response = self
             .client
-            .post(ANTHROPIC_API_URL)
-            .header("x-api-key", &self.api_key)
-            .header("anthropic-version", ANTHROPIC_VERSION)
+            .post(&url)
+            .header("Authorization", format!("Bearer {}", self.api_key))
             .header("Content-Type", "application/json")
-            .json(&api_request)
+            .json(&chat_request)
             .send()
             .await
             .map_err(|e| LlmError::ApiError {
@@ -119,22 +148,22 @@ impl LlmProvider for AnthropicProvider {
             });
         }
 
-        let api_response: MessagesResponse = response.json().await.map_err(|e| {
+        let chat_response: ChatCompletionResponse = response.json().await.map_err(|e| {
             LlmError::ApiError {
                 message: format!("Failed to parse response: {}", e),
                 status_code: None,
             }
         })?;
 
-        let content = api_response
-            .content
+        let content = chat_response
+            .choices
             .first()
-            .map(|c| c.text.clone())
+            .map(|c| c.message.content.clone())
             .unwrap_or_default();
 
-        let usage = Some(TokenUsage {
-            input_tokens: api_response.usage.input_tokens,
-            output_tokens: api_response.usage.output_tokens,
+        let usage = chat_response.usage.map(|u| TokenUsage {
+            input_tokens: u.prompt_tokens,
+            output_tokens: u.completion_tokens,
         });
 
         Ok(LlmResponse {
@@ -145,7 +174,7 @@ impl LlmProvider for AnthropicProvider {
     }
 
     fn name(&self) -> &'static str {
-        "Anthropic API"
+        self.name
     }
 
     fn is_available(&self) -> Result<()> {

@@ -205,7 +205,11 @@ fn get_branch_commits(current_branch: &str, main_branch: &str) -> Result<String>
         }
         Err(_) => {
             // Fallback to simple commit history
-            git(&["log", "--pretty=format:%ad - %s", "--date=short", "-n", "5"])
+            // Use match to handle case where git log fails (e.g. empty repo with no commits yet)
+            match git(&["log", "--pretty=format:%ad - %s", "--date=short", "-n", "5"]) {
+                Ok(logs) => Ok(logs),
+                Err(_) => Ok("Initial commit".to_string()),
+            }
         }
     }
 }
@@ -462,9 +466,7 @@ fn handle_config_command(action: &ConfigAction) -> Result<()> {
             let path = Config::config_path()?;
             println!("Config file: {}", path.display());
             println!();
-            let content = toml::to_string_pretty(&config)
-                .context("Failed to serialize config")?;
-            println!("{}", content);
+            println!("{:#?}", config);
         }
         ConfigAction::AddPreset {
             name,
@@ -477,8 +479,6 @@ fn handle_config_command(action: &ConfigAction) -> Result<()> {
                 ModelPreset {
                     provider: provider.clone(),
                     model: model.clone(),
-                    temperature: None,
-                    max_tokens: None,
                 },
             );
             config.save()?;

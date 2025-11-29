@@ -32,14 +32,6 @@ pub struct ModelPreset {
 
     /// Model name/identifier for the provider
     pub model: String,
-
-    /// Optional temperature override
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub temperature: Option<f32>,
-
-    /// Optional max tokens override
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub max_tokens: Option<u32>,
 }
 
 /// Provider-specific configuration
@@ -90,7 +82,7 @@ impl Config {
     pub fn config_path() -> Result<PathBuf> {
         let home =
             std::env::var("HOME").map_err(|_| LlmError::ConfigError("HOME not set".into()))?;
-        Ok(PathBuf::from(home).join(".config/gc/config.toml"))
+        Ok(PathBuf::from(home).join(".config/cli-programs/llm.toml"))
     }
 
     /// Get a preset by name
@@ -116,8 +108,6 @@ impl Default for Config {
             ModelPreset {
                 provider: "claude-cli".to_string(),
                 model: "sonnet".to_string(),
-                temperature: None,
-                max_tokens: None,
             },
         );
 
@@ -157,5 +147,11 @@ mod tests {
         let toml_str = toml::to_string_pretty(&config).unwrap();
         let parsed: Config = toml::from_str(&toml_str).unwrap();
         assert_eq!(parsed.default_preset, config.default_preset);
+    }
+
+    #[test]
+    fn test_config_path() {
+        let path = Config::config_path().unwrap();
+        assert!(path.to_string_lossy().contains(".config/cli-programs/llm.toml"));
     }
 }

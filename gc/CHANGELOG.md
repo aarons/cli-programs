@@ -1,6 +1,6 @@
 # Changelog
 
-## [1.1.0] - 2025-11-25
+## [1.1.0] - 2025-11-28
 
 ### Added
 - Multi-LLM provider support via new llm-client shared crate
@@ -11,11 +11,14 @@
   - `gc config show` - Display full configuration
   - `gc config set-default <preset>` - Change default preset
   - `gc config add-preset <name> -p <provider> -M <model>` - Add new preset
-- Configuration file at `~/.config/gc/config.toml`
+- Configuration file at `~/.config/cli-programs/llm.toml`
 
 ### Changed
 - Converted to async runtime using tokio
 - LLM interaction now uses llm-client crate instead of direct Claude CLI calls
+
+### Fixed
+- Restored fallback handling for initial commits in empty repositories
 
 ## [1.0.1] - 2025-10-20
 

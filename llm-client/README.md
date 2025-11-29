@@ -13,7 +13,7 @@ This crate provides a unified interface for multiple LLM providers, allowing CLI
 
 ## Configuration
 
-Configuration is stored at `~/.config/gc/config.toml`:
+Configuration is stored at `~/.config/cli-programs/llm.toml`:
 
 ```toml
 default_preset = "claude-cli"
@@ -79,4 +79,4 @@ async fn main() -> anyhow::Result<()> {
 
 ## Dependencies
 
-This crate uses [genai](https://crates.io/crates/genai) for API-based providers.
+This crate uses [reqwest](https://crates.io/crates/reqwest) for HTTP requests to API-based providers.
