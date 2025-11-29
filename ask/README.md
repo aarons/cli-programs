@@ -152,6 +152,63 @@ When you pipe data to `ask`, it's automatically included as context for your que
 - You can provide questions as arguments or pipe them via stdin
 - If no question is provided and stdin is a terminal, you'll be prompted interactively
 
+## Shell Integration
+
+By default, shells interpret special characters before `ask` receives them. For example, `ask what is 2+2?` fails because `?` is a glob pattern.
+
+### Shell Function Wrapper
+
+Add this function to your `~/.zshrc` (or `~/.bashrc` for bash):
+
+```zsh
+# For zsh
+ask() {
+  setopt localoptions NO_NOMATCH NO_BANG_HIST
+  noglob command ask "$@"
+}
+```
+
+```bash
+# For bash
+ask() {
+  set -f
+  command ask "$@"
+  local ret=$?
+  set +f
+  return $ret
+}
+```
+
+Or run the setup helper:
+
+```bash
+./setup-shell.sh
+```
+
+### What This Handles
+
+- `?` and `*` - glob patterns (e.g., `ask what is 2+2?`)
+- `!` - history expansion in zsh (e.g., `ask why is this not working!`)
+
+### Limitations
+
+These characters **cannot** be fixed without quoting because they're parsed at the shell syntax level before any function runs:
+
+- `;` - command separator (`ask what; ls` runs two commands)
+- `|` - pipe operator
+- `&&` / `||` - logical operators
+- `>` / `<` - redirections
+
+For queries containing these characters, either use quotes or the interactive mode:
+
+```bash
+# Use quotes
+ask "what does foo && bar mean?"
+
+# Or use interactive mode (prompts for input)
+ask
+```
+
 ## Installation
 
 ### Prerequisites
