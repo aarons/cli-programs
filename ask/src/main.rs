@@ -178,7 +178,6 @@ async fn main() -> Result<()> {
     // Copy to clipboard if not general mode (macOS only)
     if !args.general {
         copy_to_clipboard(&response)?;
-        eprintln!("[INFO] Response copied to clipboard");
     }
 
     Ok(())

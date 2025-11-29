@@ -6,6 +6,9 @@
 - Shell integration for unquoted special characters (`?`, `*`, `!`)
 - Setup script (`setup-shell.sh`) to install shell wrapper function
 
+### Changed
+- Removed clipboard status message for cleaner output
+
 ## [1.1.0] - 2025-11-28
 
 ### Added
