@@ -4,10 +4,16 @@
 
 ### Added
 - Shell integration for unquoted special characters (`?`, `*`, `!`)
-- Setup script (`setup-shell.sh`) to install shell wrapper function
+- Setup script (`setup-shell.sh`) to install shell wrapper
+- `ask setup` subcommand to check and install shell integration
+  - `ask setup` or `ask setup check` - Check if shell integration is installed
+  - `ask setup install` - Interactively install shell integration
 
 ### Changed
 - Removed clipboard status message for cleaner output
+
+### Fixed
+- Zsh shell integration now uses alias instead of function (glob expansion was happening before function execution)
 
 ## [1.1.0] - 2025-11-28
 
