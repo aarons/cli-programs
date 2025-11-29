@@ -1,5 +1,27 @@
 # Changelog
 
+## [1.1.0] - 2025-11-28
+
+### Added
+- Multi-provider LLM support via `llm-client` library
+- Support for Anthropic API, OpenRouter, and Cerebras providers in addition to Claude CLI
+- `--model` flag to select a specific preset for the request
+- `--debug` flag for verbose output (shows provider name, token usage)
+- Configuration subcommands:
+  - `ask config list` - List available presets
+  - `ask config show` - Show current configuration
+  - `ask config set-default <preset>` - Set default preset
+  - `ask config add-preset <name> --provider <p> --model <m>` - Add new preset
+- Shared configuration with `gc` at `~/.config/cli-programs/llm.toml`
+
+### Changed
+- Migrated from synchronous to async execution using tokio
+- LLM calls now use proper system prompts (separated from user prompt)
+
+### Removed
+- `--output-format` flag (was Claude CLI specific)
+- Direct Claude CLI path lookup (now handled by llm-client)
+
 ## [1.0.0] - 2025-10-17
 
 ### Added
