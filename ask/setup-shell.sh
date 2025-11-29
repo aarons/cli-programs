@@ -4,10 +4,10 @@
 
 set -e
 
-ZSH_FUNCTION='ask() {
-  setopt localoptions NO_NOMATCH NO_BANG_HIST
-  noglob command ask "$@"
-}'
+# Zsh: Use alias because noglob must be a precommand modifier.
+# With a function, glob expansion happens BEFORE the function is called.
+# With an alias, noglob is applied to the entire command line.
+ZSH_FUNCTION='alias ask='\''noglob command ask'\'''
 
 BASH_FUNCTION='ask() {
   set -f
@@ -39,14 +39,14 @@ esac
 echo "Detected shell: $SHELL_NAME"
 echo "Config file: $RC_FILE"
 echo ""
-echo "This will add the following function to $RC_FILE:"
+echo "This will add the following to $RC_FILE:"
 echo ""
 echo "$FUNCTION"
 echo ""
 
-# Check if already installed
-if grep -q "^ask()" "$RC_FILE" 2>/dev/null; then
-  echo "An 'ask' function already exists in $RC_FILE"
+# Check if already installed (function or alias)
+if grep -q "^ask()\|^alias ask=" "$RC_FILE" 2>/dev/null; then
+  echo "An 'ask' function or alias already exists in $RC_FILE"
   echo "Please remove it manually if you want to reinstall."
   exit 1
 fi
