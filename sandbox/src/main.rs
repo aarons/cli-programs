@@ -5,6 +5,7 @@ mod state;
 mod worktree;
 
 use anyhow::{bail, Context, Result};
+use chrono::Local;
 use clap::{Parser, Subcommand};
 use std::env;
 use std::path::PathBuf;
@@ -31,8 +32,8 @@ struct Cli {
 enum Commands {
     /// Create a new sandbox environment
     New {
-        /// Name for the new sandbox
-        name: String,
+        /// Name for the new sandbox (defaults to timestamp: YYYY-MM-DD-HH-MM)
+        name: Option<String>,
         /// Path to the git repository (defaults to current directory)
         #[arg(long)]
         repo: Option<PathBuf>,
@@ -81,7 +82,7 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::New { name, repo, branch } => cmd_new(&name, repo, branch),
+        Commands::New { name, repo, branch } => cmd_new(name.as_deref(), repo, branch),
         Commands::Resume { name } => cmd_resume(name),
         Commands::List => cmd_list(),
         Commands::Remove { name, worktree } => cmd_remove(&name, worktree),
@@ -89,7 +90,7 @@ fn main() -> Result<()> {
     }
 }
 
-fn cmd_new(name: &str, repo: Option<PathBuf>, branch: Option<String>) -> Result<()> {
+fn cmd_new(name: Option<&str>, repo: Option<PathBuf>, branch: Option<String>) -> Result<()> {
     // Check Docker availability
     check_docker()?;
     check_docker_sandbox()?;
@@ -113,6 +114,12 @@ fn cmd_new(name: &str, repo: Option<PathBuf>, branch: Option<String>) -> Result<
         get_current_branch(&repo_path).unwrap_or_else(|_| "main".to_string())
     });
 
+    // Generate sandbox name: use provided name or timestamp
+    let sandbox_name = match name {
+        Some(n) => n.to_string(),
+        None => Local::now().format("%Y-%m-%d-%H-%M").to_string(),
+    };
+
     // Check if worktree directory is configured, prompt if not
     let worktree_dir = config.worktree_dir_expanded()?;
     if !worktree_dir.exists() {
@@ -130,17 +137,16 @@ fn cmd_new(name: &str, repo: Option<PathBuf>, branch: Option<String>) -> Result<
             .with_context(|| format!("Failed to create worktree directory: {}", worktree_dir.display()))?;
     }
 
-    // Generate worktree path
-    let worktree_name = format!("{}-{}", repo_name, name);
-    let worktree_path = config.worktree_dir_expanded()?.join(&worktree_name);
+    // Generate worktree path: worktrees/repo-name/sandbox-name
+    let worktree_path = config.worktree_dir_expanded()?.join(&repo_name).join(&sandbox_name);
 
     if worktree_path.exists() {
         bail!("Worktree already exists: {}", worktree_path.display());
     }
 
     // Check if name already exists in state
-    if state.worktrees.contains_key(name) {
-        bail!("Sandbox with name '{}' already exists", name);
+    if state.worktrees.contains_key(&sandbox_name) {
+        bail!("Sandbox with name '{}' already exists", sandbox_name);
     }
 
     // Handle template building
@@ -167,14 +173,14 @@ fn cmd_new(name: &str, repo: Option<PathBuf>, branch: Option<String>) -> Result<
 
     // Save state
     state.add_worktree(
-        name.to_string(),
+        sandbox_name.clone(),
         worktree_path.clone(),
         repo_path,
         source_branch,
     );
     state.save()?;
 
-    println!("Sandbox '{}' created successfully!", name);
+    println!("Sandbox '{}' created successfully!", sandbox_name);
     println!("Starting sandbox...");
 
     // Start the sandbox
