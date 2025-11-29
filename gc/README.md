@@ -26,7 +26,7 @@ The tool automatically stages changes, generates the commit message, commits, an
 - `--staged` - Only commit staged changes (don't auto-stage)
 - `--nopush` - Skip pushing to remote after commit
 - `--model <preset>` - Use a specific model preset instead of the default
-- `--context <text>` - Provide squash merge context (changes mode to use provided context instead of branch commits)
+- `--context <text>` - Provide additional context to guide commit message generation
 - Trailing args - High-level description to guide commit message generation
 
 ## Usage
@@ -56,11 +56,11 @@ gc --debug "refactor database layer"
 ```
 Shows detailed output including LLM prompts, responses, and validation steps.
 
-### Squash merge with context
+### Providing additional context
 ```bash
-gc --context "Merged PR #123: User authentication system"
+gc --context "This refactor improves performance by caching database queries"
 ```
-Uses provided context instead of analyzing branch commits. Useful for squash merges.
+Adds extra context to help guide the LLM when generating the commit message.
 
 ### Using a specific model
 ```bash

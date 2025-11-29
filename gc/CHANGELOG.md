@@ -19,6 +19,7 @@
 
 ### Fixed
 - Restored fallback handling for initial commits in empty repositories
+- `--context` flag now adds to branch commits instead of replacing them
 
 ## [1.0.1] - 2025-10-20
 

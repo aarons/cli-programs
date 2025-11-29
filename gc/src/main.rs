@@ -546,9 +546,7 @@ async fn main() -> Result<()> {
     }
 
     // Determine mode reference for user feedback
-    let mode_ref = if args.context.is_some() {
-        "squash merge"
-    } else if args.staged {
+    let mode_ref = if args.staged {
         "staged changes"
     } else {
         "all changes"
@@ -579,18 +577,18 @@ async fn main() -> Result<()> {
 
     if let Some(provided_context) = &args.context {
         context.push_str(&format!(
-            "We're doing a squash merge, here's the full development log from the feature branch:\n{}\n\n",
+            "The user included this additional context about the work:\n{}\n\n---\n\n",
             provided_context
         ));
-    } else {
-        context.push_str(&format!(
-            "Current branch: {}\n\nCommits in {} since branching from {}:\n{}\n\n",
-            current_branch,
-            current_branch,
-            main_branch,
-            branch_commits
-        ));
     }
+
+    context.push_str(&format!(
+        "Current branch: {}\n\nCommits in {} since branching from {}:\n{}\n\n",
+        current_branch,
+        current_branch,
+        main_branch,
+        branch_commits
+    ));
 
     context.push_str(&format!(
         "Changed files:\n{}\n\nStaged changes:\n{}",
