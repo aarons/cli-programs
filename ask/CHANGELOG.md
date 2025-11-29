@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.2.0] - 2025-11-28
+
+### Added
+- Shell integration for unquoted special characters (`?`, `*`, `!`)
+- Setup script (`setup-shell.sh`) to install shell wrapper function
+
 ## [1.1.0] - 2025-11-28
 
 ### Added
