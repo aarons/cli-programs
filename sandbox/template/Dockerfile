@@ -22,3 +22,7 @@ RUN sudo apt-get update && sudo apt-get install -y \
 
 # Additional Rust tools
 RUN cargo install cargo-watch cargo-expand
+
+# CLI tools from cli-programs workspace
+COPY assets/gc /usr/local/bin/gc
+RUN chmod +x /usr/local/bin/gc
