@@ -18,6 +18,9 @@ use interactive::{confirm, display_sandbox_list, get_sandbox_entries, prompt_sel
 use state::State;
 use worktree::{create_worktree, get_current_branch, get_repo_name, get_repo_root, remove_worktree};
 
+/// Default template image name used when no custom template is configured
+const DEFAULT_TEMPLATE_IMAGE: &str = "sandbox-dev";
+
 #[derive(Parser)]
 #[command(name = "sandbox")]
 #[command(about = "Manage Claude Code development environments using git worktrees and Docker sandboxes")]
@@ -73,8 +76,8 @@ enum ConfigAction {
         /// Configuration value
         value: String,
     },
-    /// Initialize the default Dockerfile template
-    InitTemplate,
+    /// Create a Dockerfile template for customization
+    CreateDockerfile,
 }
 
 fn main() -> Result<()> {
@@ -143,22 +146,41 @@ fn cmd_new(name: &str, repo: Option<PathBuf>, branch: Option<String>) -> Result<
         bail!("Sandbox with name '{}' already exists", name);
     }
 
-    // Handle template building
-    if let Some(ref template_name) = config.template_image {
-        let template_dockerfile = get_template_dockerfile()?;
+    // Handle template - auto-create and build if needed
+    let template_name = config
+        .template_image
+        .clone()
+        .unwrap_or_else(|| DEFAULT_TEMPLATE_IMAGE.to_string());
+    let template_dockerfile = get_template_dockerfile()?;
 
-        if template_dockerfile.exists() {
-            let needs_build = !template_exists(template_name)?
-                || template_needs_rebuild(&template_dockerfile)?;
+    // Check if we need to create and/or build the template
+    let dockerfile_exists = template_dockerfile.exists();
+    let image_exists = template_exists(&template_name)?;
 
-            if needs_build {
-                println!("Building custom template...");
-                build_template(&template_dockerfile, template_name)?;
-            }
-        } else if !template_exists(template_name)? {
-            println!("Warning: Template '{}' not found and no Dockerfile available", template_name);
-            println!("Run 'sandbox config init-template' to create a default Dockerfile");
+    if !dockerfile_exists && !image_exists {
+        // First-time setup: create default Dockerfile and build
+        println!("Setting up sandbox template (first-time setup)...");
+        let template_dir = template_dockerfile
+            .parent()
+            .context("Invalid template path")?;
+        std::fs::create_dir_all(template_dir)?;
+        std::fs::write(&template_dockerfile, DEFAULT_DOCKERFILE)?;
+        println!("Created default Dockerfile at: {}", template_dockerfile.display());
+        build_template(&template_dockerfile, &template_name)?;
+    } else if dockerfile_exists {
+        // Dockerfile exists - check if rebuild needed
+        let needs_build = !image_exists || template_needs_rebuild(&template_dockerfile)?;
+        if needs_build {
+            println!("Building sandbox template...");
+            build_template(&template_dockerfile, &template_name)?;
         }
+    }
+    // If only image exists (no dockerfile), use it as-is
+
+    // Update config with template_image if not already set
+    if config.template_image.is_none() {
+        config.template_image = Some(template_name);
+        config.save()?;
     }
 
     // Create the worktree
@@ -294,7 +316,7 @@ fn cmd_config(action: ConfigAction) -> Result<()> {
             config.save()?;
             println!("Configuration updated.");
         }
-        ConfigAction::InitTemplate => {
+        ConfigAction::CreateDockerfile => {
             let template_path = get_template_dockerfile()?;
 
             if template_path.exists() {
@@ -304,16 +326,18 @@ fn cmd_config(action: ConfigAction) -> Result<()> {
             }
 
             // Create template directory
-            if let Some(parent) = template_path.parent() {
-                std::fs::create_dir_all(parent)?;
-            }
+            let template_dir = template_path.parent().context("Invalid template path")?;
+            std::fs::create_dir_all(template_dir)?;
 
             // Write default template
             std::fs::write(&template_path, DEFAULT_DOCKERFILE)?;
 
-            println!("Template Dockerfile created at: {}", template_path.display());
-            println!("\nTo use it, set the template_image in your config:");
-            println!("  sandbox config set template_image sandbox-dev");
+            println!(
+                "Template Dockerfile created at: {}",
+                template_path.display()
+            );
+            println!("\nEdit this file to customize your sandbox environment.");
+            println!("Changes will be automatically built on your next 'sandbox new'.");
         }
     }
 
@@ -322,31 +346,8 @@ fn cmd_config(action: ConfigAction) -> Result<()> {
 
 /// Get the path to the user's template Dockerfile
 fn get_template_dockerfile() -> Result<PathBuf> {
-    Ok(Config::config_dir()?.join("sandbox-template").join("Dockerfile"))
+    Ok(Config::config_dir()?.join("sandbox").join("Dockerfile"))
 }
 
-const DEFAULT_DOCKERFILE: &str = r#"FROM docker/sandbox-templates:claude-code
-
-# Rust toolchain
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-ENV PATH="/home/agent/.cargo/bin:$PATH"
-
-# Node.js tools (npm already included)
-RUN npm install -g pnpm
-
-# Tauri dependencies (for Linux container)
-RUN sudo apt-get update && sudo apt-get install -y \
-    libwebkit2gtk-4.1-dev \
-    build-essential \
-    curl \
-    wget \
-    file \
-    libssl-dev \
-    libgtk-3-dev \
-    libayatana-appindicator3-dev \
-    librsvg2-dev \
-    && sudo rm -rf /var/lib/apt/lists/*
-
-# Additional Rust tools
-RUN cargo install cargo-watch cargo-expand
-"#;
+/// Default Dockerfile template loaded from template/Dockerfile at compile time
+const DEFAULT_DOCKERFILE: &str = include_str!("../template/Dockerfile");

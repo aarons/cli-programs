@@ -1,11 +1,14 @@
 use anyhow::{bail, Context, Result};
 use sha2::{Digest, Sha256};
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 use crate::config::Config;
 use crate::state::{load_template_hash, save_template_hash};
+
+/// Binaries to build and include in the template image
+const TEMPLATE_BINARIES: &[&str] = &["gc"];
 
 /// Status of a sandbox container
 #[derive(Debug, Clone, PartialEq)]
@@ -84,9 +87,88 @@ pub fn template_needs_rebuild(dockerfile_path: &Path) -> Result<bool> {
     }
 }
 
+/// Find the workspace root by looking for Cargo.toml with [workspace]
+fn find_workspace_root() -> Result<PathBuf> {
+    let exe_path = std::env::current_exe().context("Failed to get current executable path")?;
+
+    // Walk up from the executable location to find workspace root
+    let mut current = exe_path.parent();
+    while let Some(dir) = current {
+        let cargo_toml = dir.join("Cargo.toml");
+        if cargo_toml.exists() {
+            let content = fs::read_to_string(&cargo_toml).unwrap_or_default();
+            if content.contains("[workspace]") {
+                return Ok(dir.to_path_buf());
+            }
+        }
+        current = dir.parent();
+    }
+
+    // Fallback: try current directory and walk up
+    let mut current = std::env::current_dir().ok();
+    while let Some(dir) = current {
+        let cargo_toml = dir.join("Cargo.toml");
+        if cargo_toml.exists() {
+            let content = fs::read_to_string(&cargo_toml).unwrap_or_default();
+            if content.contains("[workspace]") {
+                return Ok(dir);
+            }
+        }
+        current = dir.parent().map(|p| p.to_path_buf());
+    }
+
+    bail!("Could not find workspace root (Cargo.toml with [workspace])")
+}
+
+/// Prepare template assets by building required binaries
+pub fn prepare_template_assets(dockerfile_dir: &Path) -> Result<()> {
+    let assets_dir = dockerfile_dir.join("assets");
+    fs::create_dir_all(&assets_dir).context("Failed to create assets directory")?;
+
+    let workspace_root = find_workspace_root()?;
+
+    println!("Building template binaries...");
+
+    // Build all binaries in release mode
+    let packages: Vec<_> = TEMPLATE_BINARIES.iter().flat_map(|p| ["-p", p]).collect();
+    let status = Command::new("cargo")
+        .current_dir(&workspace_root)
+        .args(["build", "--release"])
+        .args(&packages)
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit())
+        .status()
+        .context("Failed to run cargo build")?;
+
+    if !status.success() {
+        bail!("Failed to build template binaries");
+    }
+
+    // Copy binaries to assets directory
+    let target_dir = workspace_root.join("target/release");
+    for binary in TEMPLATE_BINARIES {
+        let src = target_dir.join(binary);
+        let dst = assets_dir.join(binary);
+
+        if !src.exists() {
+            bail!("Binary not found after build: {}", src.display());
+        }
+
+        fs::copy(&src, &dst)
+            .with_context(|| format!("Failed to copy {} to assets", binary))?;
+
+        println!("  Copied {} to assets/", binary);
+    }
+
+    Ok(())
+}
+
 /// Build the custom template image
 pub fn build_template(dockerfile_path: &Path, image_name: &str) -> Result<()> {
     let dockerfile_dir = dockerfile_path.parent().unwrap_or(Path::new("."));
+
+    // Prepare assets before building
+    prepare_template_assets(dockerfile_dir)?;
 
     println!("Building custom template image: {}", image_name);
 

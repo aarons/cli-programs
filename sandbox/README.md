@@ -23,6 +23,21 @@ cargo run -p update-cli-programs --release
 - Docker Desktop with the sandbox extension installed
 - Git
 
+## Quick Start
+
+```bash
+# In a git repository - just works!
+sandbox new feature-auth
+```
+
+On first run, `sandbox new` automatically:
+1. Creates the default Dockerfile template
+2. Builds the sandbox image (`sandbox-dev`)
+3. Creates a git worktree at `~/worktrees/<repo>-<name>`
+4. Starts a Docker sandbox with Claude Code
+
+No configuration required - sensible defaults are used.
+
 ## Usage
 
 ### Create a new sandbox
@@ -37,11 +52,6 @@ sandbox new feature-auth --repo ~/code/my-project
 # Create from a specific branch
 sandbox new bugfix-123 --branch develop
 ```
-
-This will:
-1. Create a git worktree at `~/worktrees/<repo>-<name>`
-2. Start a Docker sandbox with the worktree mounted
-3. Launch Claude Code with `--dangerously-skip-permissions`
 
 ### Resume an existing sandbox
 
@@ -116,27 +126,40 @@ sandbox config show
 sandbox config set worktree_dir ~/dev/worktrees
 sandbox config set template_image my-custom-template
 
-# Initialize default Dockerfile template
-sandbox config init-template
+# Create Dockerfile for customization
+sandbox config create-dockerfile
 ```
 
 ## Custom Docker Templates
 
-To use a custom Docker image with additional tools:
+The default template is automatically created and built on first use. To customize:
 
-1. Initialize the template:
-   ```bash
-   sandbox config init-template
-   ```
+### Option 1: Pre-configure before first sandbox
 
-2. Edit `~/.config/cli-programs/sandbox-template/Dockerfile`
+```bash
+# Set custom worktree directory
+sandbox config set worktree_dir /tmp/sandboxes
 
-3. Set the template image name:
-   ```bash
-   sandbox config set template_image sandbox-dev
-   ```
+# Set custom template name
+sandbox config set template_image my-sandbox
 
-The CLI will automatically build the template when needed and rebuild when the Dockerfile changes.
+# Now create your first sandbox (uses your config)
+sandbox new feature-auth
+```
+
+### Option 2: Customize the Dockerfile
+
+```bash
+# Create a Dockerfile you can edit
+sandbox config create-dockerfile
+
+# Edit ~/.config/cli-programs/sandbox/Dockerfile
+
+# Next sandbox will auto-rebuild with your changes
+sandbox new feature-auth
+```
+
+The CLI automatically rebuilds the template when the Dockerfile changes.
 
 ### Default template
 
@@ -169,4 +192,5 @@ Each sandbox creates a git worktree, providing:
 
 - `~/.config/cli-programs/sandbox.toml` - Configuration
 - `~/.config/cli-programs/sandbox-state.json` - Worktree tracking
+- `~/.config/cli-programs/sandbox/Dockerfile` - User's custom Dockerfile template
 - `~/.config/cli-programs/sandbox-template.hash` - Template build tracking
