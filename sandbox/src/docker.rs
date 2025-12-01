@@ -216,16 +216,7 @@ pub fn start_sandbox(workspace: &Path, config: &Config) -> Result<()> {
     let mut cmd = Command::new("docker");
     cmd.args(["sandbox", "run"]);
 
-    // Mount ~/.claude for authentication
-    let claude_dir = dirs::home_dir()
-        .context("Could not determine home directory")?
-        .join(".claude");
-    cmd.args([
-        "-v",
-        &format!("{}:/home/agent/.claude", claude_dir.display()),
-    ]);
-
-    // Mount additional configured volumes
+    // Mount configured volumes
     for mount in &config.mounts {
         let source = Config::expand_path(&mount.source)?;
         if source.exists() {
