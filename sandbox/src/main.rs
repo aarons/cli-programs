@@ -14,16 +14,16 @@ use docker::{
     build_template, check_docker, check_docker_sandbox, remove_sandbox, sandbox_status,
     start_sandbox, template_exists, template_needs_rebuild, SandboxStatus,
 };
-use interactive::{confirm, display_sandbox_list, get_sandbox_entries, prompt_selection, prompt_string};
+use interactive::{confirm, display_sandbox_list, get_sandbox_entries, prompt_selection};
 use state::State;
-use worktree::{create_worktree, get_current_branch, get_repo_name, get_repo_root, remove_worktree};
+use worktree::{get_repo_name, get_repo_root};
 
 /// Default template image name used when no custom template is configured
 const DEFAULT_TEMPLATE_IMAGE: &str = "sandbox-dev";
 
 #[derive(Parser)]
 #[command(name = "sandbox")]
-#[command(about = "Manage Claude Code development environments using git worktrees and Docker sandboxes")]
+#[command(about = "Manage Claude Code development environments in Docker sandboxes")]
 #[command(version)]
 struct Cli {
     #[command(subcommand)]
@@ -32,32 +32,14 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Create a new sandbox environment
-    New {
-        /// Name for the new sandbox
-        name: String,
-        /// Path to the git repository (defaults to current directory)
-        #[arg(long)]
-        repo: Option<PathBuf>,
-        /// Branch to create the worktree from
-        #[arg(long)]
-        branch: Option<String>,
-    },
-    /// Resume an existing sandbox environment
-    Resume {
-        /// Name of the sandbox to resume (interactive selection if not provided)
-        name: Option<String>,
-    },
+    /// Create a new sandbox for the current repository
+    New,
+    /// Resume an existing sandbox (interactive selection)
+    Resume,
     /// List all sandbox environments
     List,
-    /// Remove a sandbox environment
-    Remove {
-        /// Name of the sandbox to remove
-        name: String,
-        /// Also remove the git worktree
-        #[arg(long)]
-        worktree: bool,
-    },
+    /// Remove a sandbox environment (interactive selection)
+    Remove,
     /// Show or modify configuration
     Config {
         #[command(subcommand)]
@@ -84,10 +66,10 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Some(Commands::New { name, repo, branch }) => cmd_new(&name, repo, branch),
-        Some(Commands::Resume { name }) => cmd_resume(name),
+        Some(Commands::New) => cmd_new(),
+        Some(Commands::Resume) => cmd_resume(),
         Some(Commands::List) => cmd_list(),
-        Some(Commands::Remove { name, worktree }) => cmd_remove(&name, worktree),
+        Some(Commands::Remove) => cmd_remove(),
         Some(Commands::Config { action }) => cmd_config(action),
         None => cmd_interactive(),
     }
@@ -101,7 +83,7 @@ fn cmd_interactive() -> Result<()> {
 
     loop {
         println!("What would you like to do?\n");
-        println!("  1. New      - Create a new sandbox");
+        println!("  1. New      - Create a new sandbox for current repo");
         println!("  2. Resume   - Resume an existing sandbox");
         println!("  3. List     - List all sandboxes");
         println!("  4. Remove   - Remove a sandbox");
@@ -117,28 +99,17 @@ fn cmd_interactive() -> Result<()> {
 
         match input {
             "1" | "new" | "n" => {
-                let name = prompt_string("Sandbox name", None)?;
-                if name.is_empty() {
-                    println!("Name is required.\n");
-                    continue;
-                }
-                return cmd_new(&name, None, None);
+                return cmd_new();
             }
             "2" | "resume" | "r" => {
-                return cmd_resume(None);
+                return cmd_resume();
             }
             "3" | "list" | "l" => {
                 cmd_list()?;
                 println!();
             }
             "4" | "remove" | "rm" => {
-                let name = prompt_string("Sandbox name to remove", None)?;
-                if name.is_empty() {
-                    println!("Name is required.\n");
-                    continue;
-                }
-                let remove_worktree = confirm("Also remove the git worktree?")?;
-                return cmd_remove(&name, remove_worktree);
+                return cmd_remove();
             }
             "5" | "config" | "c" => {
                 cmd_config(ConfigAction::Show)?;
@@ -154,7 +125,7 @@ fn cmd_interactive() -> Result<()> {
     }
 }
 
-fn cmd_new(name: &str, repo: Option<PathBuf>, branch: Option<String>) -> Result<()> {
+fn cmd_new() -> Result<()> {
     // Check Docker availability
     check_docker()?;
     check_docker_sandbox()?;
@@ -163,49 +134,18 @@ fn cmd_new(name: &str, repo: Option<PathBuf>, branch: Option<String>) -> Result<
     let mut config = Config::load()?;
     let mut state = State::load()?;
 
-    // Determine repository path
-    let repo_path = if let Some(r) = repo {
-        r.canonicalize()
-            .with_context(|| format!("Repository path does not exist: {}", r.display()))?
-    } else {
-        let cwd = env::current_dir().context("Failed to get current directory")?;
-        get_repo_root(&cwd).context("Current directory is not in a git repository")?
-    };
-
-    // Get repository info
+    // Get current repository
+    let cwd = env::current_dir().context("Failed to get current directory")?;
+    let repo_path = get_repo_root(&cwd).context("Current directory is not in a git repository")?;
+    let repo_key = repo_path.to_string_lossy().to_string();
     let repo_name = get_repo_name(&repo_path);
-    let source_branch = branch.clone().unwrap_or_else(|| {
-        get_current_branch(&repo_path).unwrap_or_else(|_| "main".to_string())
-    });
 
-    // Check if worktree directory is configured, prompt if not
-    let worktree_dir = config.worktree_dir_expanded()?;
-    if !worktree_dir.exists() {
-        println!("Worktree directory does not exist: {}", worktree_dir.display());
-        let dir = prompt_string(
-            "Enter worktree directory",
-            Some(&config.worktree_dir),
-        )?;
-        config.worktree_dir = dir;
-        config.save()?;
-
-        // Create the directory
-        let worktree_dir = config.worktree_dir_expanded()?;
-        std::fs::create_dir_all(&worktree_dir)
-            .with_context(|| format!("Failed to create worktree directory: {}", worktree_dir.display()))?;
-    }
-
-    // Generate worktree path
-    let worktree_name = format!("{}-{}", repo_name, name);
-    let worktree_path = config.worktree_dir_expanded()?.join(&worktree_name);
-
-    if worktree_path.exists() {
-        bail!("Worktree already exists: {}", worktree_path.display());
-    }
-
-    // Check if name already exists in state
-    if state.worktrees.contains_key(name) {
-        bail!("Sandbox with name '{}' already exists", name);
+    // Check if sandbox already exists for this repo
+    if state.sandboxes.contains_key(&repo_key) {
+        bail!(
+            "Sandbox already exists for '{}'. Use 'sandbox resume' to continue.",
+            repo_name
+        );
     }
 
     // Handle template - auto-create and build if needed
@@ -245,66 +185,48 @@ fn cmd_new(name: &str, repo: Option<PathBuf>, branch: Option<String>) -> Result<
         config.save()?;
     }
 
-    // Create the worktree
-    println!("Creating worktree at: {}", worktree_path.display());
-    create_worktree(&repo_path, &worktree_path, branch.as_deref())?;
-
     // Save state
-    state.add_worktree(
-        name.to_string(),
-        worktree_path.clone(),
-        repo_path,
-        source_branch,
-    );
+    state.add_sandbox(repo_path.clone());
     state.save()?;
 
-    println!("Sandbox '{}' created successfully!", name);
-    println!("Starting sandbox...");
+    println!("Starting sandbox for '{}'...", repo_name);
 
-    // Start the sandbox
-    start_sandbox(&worktree_path, &config)?;
+    // Start the sandbox in the repo directory
+    start_sandbox(&repo_path, &config)?;
 
     Ok(())
 }
 
-fn cmd_resume(name: Option<String>) -> Result<()> {
+fn cmd_resume() -> Result<()> {
     check_docker()?;
     check_docker_sandbox()?;
 
     let config = Config::load()?;
     let state = State::load()?;
 
-    // Get the sandbox to resume
-    let (sandbox_name, info) = if let Some(n) = name {
-        let info = state
-            .get_worktree(&n)
-            .with_context(|| format!("Sandbox '{}' not found", n))?;
-        (n, info.clone())
-    } else {
-        // Interactive selection
-        let entries = get_sandbox_entries(&state)?;
-        if entries.is_empty() {
-            println!("No sandboxes found. Create one with 'sandbox new <name>'");
-            return Ok(());
-        }
+    // Interactive selection
+    let entries = get_sandbox_entries(&state)?;
+    if entries.is_empty() {
+        println!("No sandboxes found. Create one with 'sandbox new'");
+        return Ok(());
+    }
 
-        match prompt_selection(&entries)? {
-            Some(entry) => (entry.name.clone(), entry.info.clone()),
-            None => return Ok(()),
-        }
+    let entry = match prompt_selection(&entries)? {
+        Some(e) => e,
+        None => return Ok(()),
     };
 
     // Check sandbox status and start if needed
-    let status = sandbox_status(&info.path)?;
+    let status = sandbox_status(&entry.info.path)?;
 
     match status {
         SandboxStatus::Running => {
-            println!("Attaching to running sandbox '{}'...", sandbox_name);
-            docker::attach_sandbox(&info.path)?;
+            println!("Attaching to running sandbox '{}'...", entry.name);
+            docker::attach_sandbox(&entry.info.path)?;
         }
         SandboxStatus::Stopped | SandboxStatus::NotFound => {
-            println!("Starting sandbox '{}'...", sandbox_name);
-            start_sandbox(&info.path, &config)?;
+            println!("Starting sandbox '{}'...", entry.name);
+            start_sandbox(&entry.info.path, &config)?;
         }
     }
 
@@ -320,39 +242,34 @@ fn cmd_list() -> Result<()> {
     Ok(())
 }
 
-fn cmd_remove(name: &str, remove_worktree_flag: bool) -> Result<()> {
+fn cmd_remove() -> Result<()> {
     let mut state = State::load()?;
 
-    let info = state
-        .get_worktree(name)
-        .with_context(|| format!("Sandbox '{}' not found", name))?
-        .clone();
+    // Interactive selection
+    let entries = get_sandbox_entries(&state)?;
+    if entries.is_empty() {
+        println!("No sandboxes found.");
+        return Ok(());
+    }
+
+    let entry = match prompt_selection(&entries)? {
+        Some(e) => e,
+        None => return Ok(()),
+    };
+
+    if !confirm(&format!("Remove sandbox for '{}'?", entry.name))? {
+        return Ok(());
+    }
 
     // Remove Docker sandbox
     println!("Removing sandbox container...");
-    let _ = remove_sandbox(&info.path);
-
-    // Optionally remove worktree
-    if remove_worktree_flag {
-        if confirm(&format!(
-            "Remove git worktree at {}?",
-            info.path.display()
-        ))? {
-            println!("Removing worktree...");
-            remove_worktree(&info.source_repo, &info.path)?;
-        }
-    } else {
-        println!(
-            "Worktree preserved at: {}\nUse --worktree to also remove it.",
-            info.path.display()
-        );
-    }
+    let _ = remove_sandbox(&entry.info.path);
 
     // Remove from state
-    state.remove_worktree(name);
+    state.remove_sandbox(&entry.key);
     state.save()?;
 
-    println!("Sandbox '{}' removed.", name);
+    println!("Sandbox '{}' removed.", entry.name);
 
     Ok(())
 }
@@ -370,9 +287,8 @@ fn cmd_config(action: ConfigAction) -> Result<()> {
             let mut config = Config::load()?;
 
             match key.as_str() {
-                "worktree_dir" => config.worktree_dir = value,
                 "template_image" => config.template_image = Some(value),
-                _ => bail!("Unknown configuration key: {}", key),
+                _ => bail!("Unknown configuration key: {}. Valid keys: template_image", key),
             }
 
             config.save()?;

@@ -14,10 +14,6 @@ pub struct Mount {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
-    /// Directory where worktrees are created
-    #[serde(default = "default_worktree_dir")]
-    pub worktree_dir: String,
-
     /// Custom Docker template image name
     #[serde(default)]
     pub template_image: Option<String>,
@@ -35,10 +31,6 @@ pub struct Config {
     pub mounts: Vec<Mount>,
 }
 
-fn default_worktree_dir() -> String {
-    "~/worktrees".to_string()
-}
-
 fn default_binary_dirs() -> Vec<String> {
     vec!["~/.local/bin".to_string()]
 }
@@ -46,7 +38,6 @@ fn default_binary_dirs() -> Vec<String> {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            worktree_dir: default_worktree_dir(),
             template_image: None,
             binary_dirs: default_binary_dirs(),
             env: HashMap::new(),
@@ -94,7 +85,10 @@ impl Config {
                 .with_context(|| format!("Failed to parse config file: {}", path.display()))?;
             Ok(config)
         } else {
-            Ok(Config::default())
+            // Create default config file for user to edit
+            let config = Config::default();
+            config.save()?;
+            Ok(config)
         }
     }
 
@@ -113,12 +107,6 @@ impl Config {
             .with_context(|| format!("Failed to write config file: {}", path.display()))?;
 
         Ok(())
-    }
-
-    /// Get the expanded worktree directory path
-    pub fn worktree_dir_expanded(&self) -> Result<PathBuf> {
-        let expanded = shellexpand::tilde(&self.worktree_dir);
-        Ok(PathBuf::from(expanded.as_ref()))
     }
 
     /// Expand environment variables in a string value

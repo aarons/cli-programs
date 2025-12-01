@@ -8,21 +8,17 @@ use std::path::PathBuf;
 use crate::config::Config;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WorktreeInfo {
-    /// Full path to the worktree
+pub struct SandboxInfo {
+    /// Full path to the repository
     pub path: PathBuf,
-    /// Path to the source repository
-    pub source_repo: PathBuf,
-    /// Branch the worktree was created from
-    pub source_branch: String,
-    /// When the worktree was created
+    /// When the sandbox was created
     pub created_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct State {
-    /// Map of worktree name to info
-    pub worktrees: HashMap<String, WorktreeInfo>,
+    /// Map of canonical repo path to sandbox info
+    pub sandboxes: HashMap<String, SandboxInfo>,
 }
 
 impl State {
@@ -63,35 +59,22 @@ impl State {
         Ok(())
     }
 
-    /// Add a worktree to the state
-    pub fn add_worktree(
-        &mut self,
-        name: String,
-        path: PathBuf,
-        source_repo: PathBuf,
-        source_branch: String,
-    ) {
-        self.worktrees.insert(
-            name,
-            WorktreeInfo {
-                path,
-                source_repo,
-                source_branch,
+    /// Add a sandbox to the state (keyed by canonical repo path)
+    pub fn add_sandbox(&mut self, repo_path: PathBuf) {
+        let key = repo_path.to_string_lossy().to_string();
+        self.sandboxes.insert(
+            key,
+            SandboxInfo {
+                path: repo_path,
                 created_at: Utc::now(),
             },
         );
     }
 
-    /// Remove a worktree from the state
-    pub fn remove_worktree(&mut self, name: &str) -> Option<WorktreeInfo> {
-        self.worktrees.remove(name)
+    /// Remove a sandbox from the state
+    pub fn remove_sandbox(&mut self, key: &str) -> Option<SandboxInfo> {
+        self.sandboxes.remove(key)
     }
-
-    /// Get a worktree by name
-    pub fn get_worktree(&self, name: &str) -> Option<&WorktreeInfo> {
-        self.worktrees.get(name)
-    }
-
 }
 
 /// Get the template hash file path
