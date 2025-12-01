@@ -61,6 +61,11 @@ impl Default for Config {
                     target: "/home/agent/.gitconfig".to_string(),
                     readonly: true,
                 },
+                Mount {
+                    source: "~/.claude".to_string(),
+                    target: "/home/agent/.claude".to_string(),
+                    readonly: false,
+                },
             ],
         }
     }
