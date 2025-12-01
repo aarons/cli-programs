@@ -1,5 +1,5 @@
 [package]
-name = "bookname"
+name = "bookworm"
 version = "0.1.0"
 edition = "2024"
 authors = ["Aaron"]
@@ -7,7 +7,7 @@ description = "CLI tool to clean and standardize epub filenames using AI"
 license = "PolyForm-Noncommercial-1.0.0"
 
 [[bin]]
-name = "bookname"
+name = "bookworm"
 path = "src/main.rs"
 
 [dependencies]

@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.0] - 2025-11-30
+
+### Added
+- Per-program default model selection allowing gc, ask, and bookname to each use different default presets while sharing the same config file
+
 ## [0.2.0] - 2025-11-28
 
 ### Changed
