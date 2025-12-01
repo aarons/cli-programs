@@ -156,34 +156,15 @@ When you pipe data to `ask`, it's automatically included as context for your que
 
 By default, shells interpret special characters before `ask` receives them. For example, `ask what is 2+2?` fails because `?` is a glob pattern.
 
-### Shell Function Wrapper
+### Setup
 
-Add this function to your `~/.zshrc` (or `~/.bashrc` for bash):
-
-```zsh
-# For zsh
-ask() {
-  setopt localoptions NO_NOMATCH NO_BANG_HIST
-  noglob command ask "$@"
-}
-```
+Run the setup command to install shell integration:
 
 ```bash
-# For bash
-ask() {
-  set -f
-  command ask "$@"
-  local ret=$?
-  set +f
-  return $ret
-}
+ask setup
 ```
 
-Or run the setup helper:
-
-```bash
-./setup-shell.sh
-```
+This will show what the integration does, display the code it will add, and offer to install it automatically.
 
 ### What This Handles
 

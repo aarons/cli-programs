@@ -154,19 +154,14 @@ fn get_shell_info() -> Option<(&'static str, PathBuf)> {
     }
 }
 
-/// Check if shell integration is installed
-fn check_shell_integration() -> Result<bool> {
+/// Check if shell integration is installed (returns shell name, rc file, and whether installed)
+fn check_shell_integration() -> Result<Option<(&'static str, PathBuf, bool)>> {
     let Some((shell_name, rc_file)) = get_shell_info() else {
-        println!("Unknown shell. Supported shells: zsh, bash");
-        return Ok(false);
+        return Ok(None);
     };
 
-    println!("Shell: {}", shell_name);
-    println!("Config: {}", rc_file.display());
-
     if !rc_file.exists() {
-        println!("\nStatus: Shell config file not found");
-        return Ok(false);
+        return Ok(Some((shell_name, rc_file, false)));
     }
 
     let content = std::fs::read_to_string(&rc_file)?;
@@ -174,75 +169,117 @@ fn check_shell_integration() -> Result<bool> {
         || content.contains("ask()")
         || content.contains("ask ()");
 
-    if has_integration {
-        println!("\nStatus: Shell integration is installed");
-        Ok(true)
-    } else {
-        println!("\nStatus: Shell integration is NOT installed");
-        println!("\nWithout shell integration, you need to quote special characters:");
-        println!("  ask 'how do I find files matching *.txt?'");
-        println!("\nWith shell integration, quotes are optional:");
-        println!("  ask how do I find files matching *.txt?");
-        Ok(false)
+    Ok(Some((shell_name, rc_file, has_integration)))
+}
+
+/// Get the shell integration code for a given shell
+fn get_shell_integration_code(shell_name: &str) -> &'static str {
+    match shell_name {
+        "zsh" => "alias ask='noglob command ask'",
+        "bash" => r#"ask() {
+  set -f
+  command ask "$@"
+  local ret=$?
+  set +f
+  return $ret
+}"#,
+        _ => unreachable!(),
     }
 }
 
-/// Install shell integration
-fn install_shell_integration() -> Result<()> {
-    let Some((shell_name, rc_file)) = get_shell_info() else {
-        anyhow::bail!("Unknown shell. Supported shells: zsh, bash");
+/// Install shell integration to the rc file
+fn do_install(shell_name: &str, rc_file: &PathBuf) -> Result<()> {
+    let integration_code = get_shell_integration_code(shell_name);
+    let full_block = format!(
+        "\n# ask shell integration - handle special characters without quoting\n{}\n",
+        integration_code
+    );
+
+    use std::fs::OpenOptions;
+    let mut file = OpenOptions::new()
+        .append(true)
+        .create(true)
+        .open(rc_file)?;
+    file.write_all(full_block.as_bytes())?;
+
+    println!("\nInstalled! Run this to activate:");
+    println!("  source {}", rc_file.display());
+    Ok(())
+}
+
+/// Handle setup subcommands
+fn handle_setup_command(action: Option<&SetupAction>) -> Result<()> {
+    // Get shell info
+    let Some((shell_name, rc_file, is_installed)) = check_shell_integration()? else {
+        println!("Unknown shell. Supported shells: zsh, bash");
+        return Ok(());
     };
 
-    // Check if already installed
-    if rc_file.exists() {
-        let content = std::fs::read_to_string(&rc_file)?;
-        if content.contains("alias ask=") || content.contains("ask()") || content.contains("ask ()") {
-            println!("Shell integration is already installed in {}", rc_file.display());
-            return Ok(());
+    // For explicit check command, just show status
+    if matches!(action, Some(SetupAction::Check)) {
+        println!("Shell: {}", shell_name);
+        println!("Config: {}", rc_file.display());
+        if is_installed {
+            println!("\nStatus: Shell integration is installed");
+        } else {
+            println!("\nStatus: Shell integration is NOT installed");
+            println!("\nRun `ask setup` to install.");
         }
+        return Ok(());
     }
 
-    let integration = match shell_name {
-        "zsh" => "\n# ask shell integration - handle special characters without quoting\nalias ask='noglob command ask'\n",
-        "bash" => "\n# ask shell integration - handle special characters without quoting\nask() {\n  set -f\n  command ask \"$@\"\n  local ret=$?\n  set +f\n  return $ret\n}\n",
-        _ => unreachable!(),
-    };
+    // For setup (no subcommand) or setup install, show full info and offer to install
+    println!("Shell Integration Setup");
+    println!("=======================");
+    println!();
+    println!("Shell integration allows you to use special characters without quoting.");
+    println!();
+    println!("Without integration:");
+    println!("  ask 'how do I find files matching *.txt?'   # quotes required");
+    println!();
+    println!("With integration:");
+    println!("  ask how do I find files matching *.txt?     # just works");
+    println!();
+    println!("This handles glob characters (? *) and history expansion (!) but not");
+    println!("shell syntax like pipes (|), redirects (>), or semicolons (;).");
+    println!();
+    println!("---");
+    println!();
+    println!("Shell:  {}", shell_name);
+    println!("Config: {}", rc_file.display());
 
-    println!("This will add the following to {}:", rc_file.display());
-    println!("{}", integration);
+    if is_installed {
+        println!();
+        println!("Status: Already installed");
+        return Ok(());
+    }
 
-    eprint!("Proceed? [y/N] ");
+    println!();
+    println!("Status: Not installed");
+
+    let integration_code = get_shell_integration_code(shell_name);
+
+    println!();
+    println!("To install manually, add this to {}:", rc_file.display());
+    println!();
+    println!("  # ask shell integration - handle special characters without quoting");
+    for line in integration_code.lines() {
+        println!("  {}", line);
+    }
+
+    println!();
+    eprint!("Install automatically? [y/N] ");
     io::stderr().flush().ok();
 
     let mut response = String::new();
     io::stdin().lock().read_line(&mut response)?;
 
     if response.trim().eq_ignore_ascii_case("y") {
-        use std::fs::OpenOptions;
-        let mut file = OpenOptions::new()
-            .append(true)
-            .create(true)
-            .open(&rc_file)?;
-        file.write_all(integration.as_bytes())?;
-        println!("\nInstalled! Run this to activate:");
-        println!("  source {}", rc_file.display());
+        do_install(shell_name, &rc_file)?;
     } else {
-        println!("Aborted.");
+        println!("Skipped.");
     }
 
-    Ok(())
-}
-
-/// Handle setup subcommands
-fn handle_setup_command(action: Option<&SetupAction>) -> Result<()> {
-    match action {
-        Some(SetupAction::Check) | None => {
-            check_shell_integration()?;
-        }
-        Some(SetupAction::Install) => {
-            install_shell_integration()?;
-        }
-    }
     Ok(())
 }
 

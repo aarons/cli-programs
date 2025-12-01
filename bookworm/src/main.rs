@@ -25,7 +25,7 @@ Return ONLY the cleaned filename, nothing else. No quotes, no explanation, no fi
 
 #[derive(Parser, Debug)]
 #[command(
-    name = "bookname",
+    name = "bookworm",
     about = "Clean and standardize epub filenames using AI",
     long_about = "Iterates through epub files and renames them to a clean, standardized format using an LLM"
 )]
@@ -92,13 +92,13 @@ fn handle_config_command(action: &ConfigAction) -> Result<()> {
             let mut config = Config::load()?;
             // Verify preset exists
             config.get_preset(preset)?;
-            config.defaults.insert("bookname".to_string(), preset.clone());
+            config.defaults.insert("bookworm".to_string(), preset.clone());
             config.save()?;
-            println!("Default preset for bookname set to: {}", preset);
+            println!("Default preset for bookworm set to: {}", preset);
         }
         ConfigAction::List => {
             let config = Config::load()?;
-            let current_default = config.get_default_for_program("bookname");
+            let current_default = config.get_default_for_program("bookworm");
             println!("Available presets:");
             for (name, preset) in &config.presets {
                 let default_marker = if name == current_default {

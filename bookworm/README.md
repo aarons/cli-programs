@@ -1,10 +1,10 @@
-# bookname
+# bookworm
 
 CLI tool to clean and standardize epub filenames using AI.
 
 ## Overview
 
-`bookname` iterates through epub files in a directory and renames them to a clean, standardized format using an LLM. This is useful for organizing ebook collections that have messy filenames from various sources.
+`bookworm` iterates through epub files in a directory and renames them to a clean, standardized format using an LLM. This is useful for organizing ebook collections that have messy filenames from various sources.
 
 ## Output Format
 
@@ -34,7 +34,7 @@ Output: "The Travelling Cat Chronicles - Hiro Arikawa.epub"
 ## Installation
 
 ```bash
-cargo install --path bookname
+cargo install --path bookworm
 # or using the workspace installer:
 cargo run -p update-cli-programs --release
 ```
@@ -43,39 +43,39 @@ cargo run -p update-cli-programs --release
 
 ```bash
 # Process epub files in current directory
-bookname
+bookworm
 
 # Process epub files in a specific directory
-bookname --dir /path/to/ebooks
+bookworm --dir /path/to/ebooks
 
 # Process epub files recursively in subdirectories
-bookname --dir /path/to/ebooks --recursive
+bookworm --dir /path/to/ebooks --recursive
 
 # Use a specific LLM preset
-bookname --model claude-api
+bookworm --model claude-api
 
 # Enable debug output
-bookname --debug
+bookworm --debug
 ```
 
 ## Configuration
 
-bookname uses the shared LLM configuration at `~/.config/cli-programs/llm.toml`.
+bookworm uses the shared LLM configuration at `~/.config/cli-programs/llm.toml`.
 
 ### Managing Presets
 
 ```bash
 # List available presets
-bookname config list
+bookworm config list
 
 # Show current configuration
-bookname config show
+bookworm config show
 
 # Set default preset
-bookname config set-default claude-api
+bookworm config set-default claude-api
 
 # Add a new preset
-bookname config add-preset my-preset -p anthropic -M claude-sonnet-4-20250514
+bookworm config add-preset my-preset -p anthropic -M claude-sonnet-4-20250514
 ```
 
 ### Available Providers
