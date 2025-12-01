@@ -92,15 +92,16 @@ fn handle_config_command(action: &ConfigAction) -> Result<()> {
             let mut config = Config::load()?;
             // Verify preset exists
             config.get_preset(preset)?;
-            config.default_preset = preset.clone();
+            config.defaults.insert("ask".to_string(), preset.clone());
             config.save()?;
-            println!("Default preset set to: {}", preset);
+            println!("Default preset for ask set to: {}", preset);
         }
         ConfigAction::List => {
             let config = Config::load()?;
+            let current_default = config.get_default_for_program("ask");
             println!("Available presets:");
             for (name, preset) in &config.presets {
-                let default_marker = if name == &config.default_preset {
+                let default_marker = if name == current_default {
                     " (default)"
                 } else {
                     ""

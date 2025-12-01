@@ -1,11 +1,11 @@
-//! LLM client wrapper for gc
+//! LLM client wrapper for bookname
 //!
 //! Provides a simplified interface to the llm-client crate.
 
 use anyhow::{Context, Result};
 use llm_client::{get_provider, Config, LlmProvider, LlmRequest};
 
-/// Wrapper around LLM providers for gc
+/// Wrapper around LLM providers for bookname
 pub struct LlmClient {
     provider: Box<dyn LlmProvider>,
     debug: bool,
@@ -18,7 +18,7 @@ impl LlmClient {
     pub fn new(preset_name: Option<&str>, debug: bool) -> Result<Self> {
         let config = Config::load().context("Failed to load LLM configuration")?;
 
-        let preset_name = preset_name.unwrap_or_else(|| config.get_default_for_program("gc"));
+        let preset_name = preset_name.unwrap_or_else(|| config.get_default_for_program("bookname"));
         let preset = config
             .get_preset(preset_name)
             .context(format!("Unknown preset: {}", preset_name))?;
@@ -69,10 +69,5 @@ impl LlmClient {
         }
 
         Ok(response.content)
-    }
-
-    /// Get the provider name
-    pub fn provider_name(&self) -> &'static str {
-        self.provider.name()
     }
 }
