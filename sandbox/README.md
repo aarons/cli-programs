@@ -26,15 +26,19 @@ cargo run -p update-cli-programs --release
 ## Quick Start
 
 ```bash
-# In a git repository - just works!
+# Run without arguments for interactive mode
+sandbox
+
+# Or use direct commands
 sandbox new feature-auth
 ```
 
-On first run, `sandbox new` automatically:
+On first run, `sandbox` automatically:
 1. Creates the default Dockerfile template
-2. Builds the sandbox image (`sandbox-dev`)
-3. Creates a git worktree at `~/worktrees/<repo>-<name>`
-4. Starts a Docker sandbox with Claude Code
+2. Copies binaries from `~/.local/bin` into the template
+3. Builds the sandbox image (`sandbox-dev`)
+4. Creates a git worktree at `~/worktrees/<repo>-<name>`
+5. Starts a Docker sandbox with Claude Code
 
 No configuration required - sensible defaults are used.
 
@@ -98,6 +102,10 @@ worktree_dir = "~/worktrees"
 
 # Custom Docker template image name (optional)
 template_image = "sandbox-dev"
+
+# Directories containing binaries to include in the template image
+# All executable files from these directories are copied into the Docker image
+binary_dirs = ["~/.local/bin"]
 
 # Environment variables to pass to containers
 [env]
@@ -168,6 +176,7 @@ The default template includes:
 - Node.js with pnpm
 - Tauri development dependencies
 - cargo-watch and cargo-expand
+- All executables from configured `binary_dirs` (default: `~/.local/bin`)
 
 ## How It Works
 

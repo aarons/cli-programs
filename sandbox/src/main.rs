@@ -27,7 +27,7 @@ const DEFAULT_TEMPLATE_IMAGE: &str = "sandbox-dev";
 #[command(version)]
 struct Cli {
     #[command(subcommand)]
-    command: Commands,
+    command: Option<Commands>,
 }
 
 #[derive(Subcommand)]
@@ -84,11 +84,73 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::New { name, repo, branch } => cmd_new(&name, repo, branch),
-        Commands::Resume { name } => cmd_resume(name),
-        Commands::List => cmd_list(),
-        Commands::Remove { name, worktree } => cmd_remove(&name, worktree),
-        Commands::Config { action } => cmd_config(action),
+        Some(Commands::New { name, repo, branch }) => cmd_new(&name, repo, branch),
+        Some(Commands::Resume { name }) => cmd_resume(name),
+        Some(Commands::List) => cmd_list(),
+        Some(Commands::Remove { name, worktree }) => cmd_remove(&name, worktree),
+        Some(Commands::Config { action }) => cmd_config(action),
+        None => cmd_interactive(),
+    }
+}
+
+/// Interactive menu when no subcommand is provided
+fn cmd_interactive() -> Result<()> {
+    use std::io::{self, Write};
+
+    println!("sandbox - Claude Code Development Environments\n");
+
+    loop {
+        println!("What would you like to do?\n");
+        println!("  1. New      - Create a new sandbox");
+        println!("  2. Resume   - Resume an existing sandbox");
+        println!("  3. List     - List all sandboxes");
+        println!("  4. Remove   - Remove a sandbox");
+        println!("  5. Config   - Show configuration");
+        println!("  q. Quit\n");
+
+        print!("Select an option: ");
+        io::stdout().flush()?;
+
+        let mut input = String::new();
+        io::stdin().read_line(&mut input)?;
+        let input = input.trim();
+
+        match input {
+            "1" | "new" | "n" => {
+                let name = prompt_string("Sandbox name", None)?;
+                if name.is_empty() {
+                    println!("Name is required.\n");
+                    continue;
+                }
+                return cmd_new(&name, None, None);
+            }
+            "2" | "resume" | "r" => {
+                return cmd_resume(None);
+            }
+            "3" | "list" | "l" => {
+                cmd_list()?;
+                println!();
+            }
+            "4" | "remove" | "rm" => {
+                let name = prompt_string("Sandbox name to remove", None)?;
+                if name.is_empty() {
+                    println!("Name is required.\n");
+                    continue;
+                }
+                let remove_worktree = confirm("Also remove the git worktree?")?;
+                return cmd_remove(&name, remove_worktree);
+            }
+            "5" | "config" | "c" => {
+                cmd_config(ConfigAction::Show)?;
+                println!();
+            }
+            "q" | "quit" | "exit" => {
+                return Ok(());
+            }
+            _ => {
+                println!("Invalid option.\n");
+            }
+        }
     }
 }
 
@@ -166,13 +228,13 @@ fn cmd_new(name: &str, repo: Option<PathBuf>, branch: Option<String>) -> Result<
         std::fs::create_dir_all(template_dir)?;
         std::fs::write(&template_dockerfile, DEFAULT_DOCKERFILE)?;
         println!("Created default Dockerfile at: {}", template_dockerfile.display());
-        build_template(&template_dockerfile, &template_name)?;
+        build_template(&template_dockerfile, &template_name, &config)?;
     } else if dockerfile_exists {
         // Dockerfile exists - check if rebuild needed
         let needs_build = !image_exists || template_needs_rebuild(&template_dockerfile)?;
         if needs_build {
             println!("Building sandbox template...");
-            build_template(&template_dockerfile, &template_name)?;
+            build_template(&template_dockerfile, &template_name, &config)?;
         }
     }
     // If only image exists (no dockerfile), use it as-is

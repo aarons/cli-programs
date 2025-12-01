@@ -1,14 +1,12 @@
 use anyhow::{bail, Context, Result};
 use sha2::{Digest, Sha256};
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::os::unix::fs::PermissionsExt;
+use std::path::Path;
 use std::process::{Command, Stdio};
 
 use crate::config::Config;
 use crate::state::{load_template_hash, save_template_hash};
-
-/// Binaries to build and include in the template image
-const TEMPLATE_BINARIES: &[&str] = &["gc"];
 
 /// Status of a sandbox container
 #[derive(Debug, Clone, PartialEq)]
@@ -87,88 +85,83 @@ pub fn template_needs_rebuild(dockerfile_path: &Path) -> Result<bool> {
     }
 }
 
-/// Find the workspace root by looking for Cargo.toml with [workspace]
-fn find_workspace_root() -> Result<PathBuf> {
-    let exe_path = std::env::current_exe().context("Failed to get current executable path")?;
+/// Prepare template assets by copying binaries from configured directories
+pub fn prepare_template_assets(dockerfile_dir: &Path, config: &Config) -> Result<()> {
+    let assets_bin_dir = dockerfile_dir.join("assets").join("bin");
 
-    // Walk up from the executable location to find workspace root
-    let mut current = exe_path.parent();
-    while let Some(dir) = current {
-        let cargo_toml = dir.join("Cargo.toml");
-        if cargo_toml.exists() {
-            let content = fs::read_to_string(&cargo_toml).unwrap_or_default();
-            if content.contains("[workspace]") {
-                return Ok(dir.to_path_buf());
+    // Clean and recreate assets/bin directory
+    if assets_bin_dir.exists() {
+        fs::remove_dir_all(&assets_bin_dir).context("Failed to clean assets/bin directory")?;
+    }
+    fs::create_dir_all(&assets_bin_dir).context("Failed to create assets/bin directory")?;
+
+    println!("Copying binaries to template assets...");
+
+    let mut copied_count = 0;
+
+    for binary_dir in &config.binary_dirs {
+        let expanded_dir = Config::expand_path(binary_dir)?;
+
+        if !expanded_dir.exists() {
+            println!("  Skipping {} (not found)", binary_dir);
+            continue;
+        }
+
+        if !expanded_dir.is_dir() {
+            println!("  Skipping {} (not a directory)", binary_dir);
+            continue;
+        }
+
+        // Copy all executable files from this directory
+        for entry in fs::read_dir(&expanded_dir)
+            .with_context(|| format!("Failed to read directory: {}", expanded_dir.display()))?
+        {
+            let entry = entry?;
+            let path = entry.path();
+
+            // Skip directories and non-executable files
+            if path.is_dir() {
+                continue;
             }
-        }
-        current = dir.parent();
-    }
 
-    // Fallback: try current directory and walk up
-    let mut current = std::env::current_dir().ok();
-    while let Some(dir) = current {
-        let cargo_toml = dir.join("Cargo.toml");
-        if cargo_toml.exists() {
-            let content = fs::read_to_string(&cargo_toml).unwrap_or_default();
-            if content.contains("[workspace]") {
-                return Ok(dir);
+            // Check if file is executable
+            let metadata = fs::metadata(&path)?;
+            let permissions = metadata.permissions();
+            if permissions.mode() & 0o111 == 0 {
+                continue; // Not executable
             }
+
+            let file_name = path.file_name().unwrap();
+            let dst = assets_bin_dir.join(file_name);
+
+            fs::copy(&path, &dst)
+                .with_context(|| format!("Failed to copy {}", path.display()))?;
+
+            // Ensure the copied file is executable
+            let mut perms = fs::metadata(&dst)?.permissions();
+            perms.set_mode(0o755);
+            fs::set_permissions(&dst, perms)?;
+
+            println!("  Copied {}", file_name.to_string_lossy());
+            copied_count += 1;
         }
-        current = dir.parent().map(|p| p.to_path_buf());
     }
 
-    bail!("Could not find workspace root (Cargo.toml with [workspace])")
-}
-
-/// Prepare template assets by building required binaries
-pub fn prepare_template_assets(dockerfile_dir: &Path) -> Result<()> {
-    let assets_dir = dockerfile_dir.join("assets");
-    fs::create_dir_all(&assets_dir).context("Failed to create assets directory")?;
-
-    let workspace_root = find_workspace_root()?;
-
-    println!("Building template binaries...");
-
-    // Build all binaries in release mode
-    let packages: Vec<_> = TEMPLATE_BINARIES.iter().flat_map(|p| ["-p", p]).collect();
-    let status = Command::new("cargo")
-        .current_dir(&workspace_root)
-        .args(["build", "--release"])
-        .args(&packages)
-        .stdout(Stdio::inherit())
-        .stderr(Stdio::inherit())
-        .status()
-        .context("Failed to run cargo build")?;
-
-    if !status.success() {
-        bail!("Failed to build template binaries");
-    }
-
-    // Copy binaries to assets directory
-    let target_dir = workspace_root.join("target/release");
-    for binary in TEMPLATE_BINARIES {
-        let src = target_dir.join(binary);
-        let dst = assets_dir.join(binary);
-
-        if !src.exists() {
-            bail!("Binary not found after build: {}", src.display());
-        }
-
-        fs::copy(&src, &dst)
-            .with_context(|| format!("Failed to copy {} to assets", binary))?;
-
-        println!("  Copied {} to assets/", binary);
+    if copied_count == 0 {
+        println!("  No binaries found in configured directories");
+    } else {
+        println!("  Copied {} binaries", copied_count);
     }
 
     Ok(())
 }
 
 /// Build the custom template image
-pub fn build_template(dockerfile_path: &Path, image_name: &str) -> Result<()> {
+pub fn build_template(dockerfile_path: &Path, image_name: &str, config: &Config) -> Result<()> {
     let dockerfile_dir = dockerfile_path.parent().unwrap_or(Path::new("."));
 
     // Prepare assets before building
-    prepare_template_assets(dockerfile_dir)?;
+    prepare_template_assets(dockerfile_dir, config)?;
 
     println!("Building custom template image: {}", image_name);
 
