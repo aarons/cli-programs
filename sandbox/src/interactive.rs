@@ -2,12 +2,16 @@ use anyhow::Result;
 use std::io::{self, Write};
 
 use crate::docker::{sandbox_status, SandboxStatus};
-use crate::state::{State, WorktreeInfo};
+use crate::state::{SandboxInfo, State};
+use crate::worktree::get_repo_name;
 
 /// Display entry for interactive selection
 pub struct SelectionEntry {
+    /// Canonical path key (used for state lookup)
+    pub key: String,
+    /// Display name (derived from repo directory name)
     pub name: String,
-    pub info: WorktreeInfo,
+    pub info: SandboxInfo,
     pub status: SandboxStatus,
 }
 
@@ -15,10 +19,12 @@ pub struct SelectionEntry {
 pub fn get_sandbox_entries(state: &State) -> Result<Vec<SelectionEntry>> {
     let mut entries = Vec::new();
 
-    for (name, info) in &state.worktrees {
+    for (key, info) in &state.sandboxes {
         let status = sandbox_status(&info.path).unwrap_or(SandboxStatus::NotFound);
+        let name = get_repo_name(&info.path);
         entries.push(SelectionEntry {
-            name: name.clone(),
+            key: key.clone(),
+            name,
             info: info.clone(),
             status,
         });
@@ -101,26 +107,4 @@ pub fn confirm(message: &str) -> Result<bool> {
     let input = input.trim();
 
     Ok(input.eq_ignore_ascii_case("y") || input.eq_ignore_ascii_case("yes"))
-}
-
-/// Prompt for a required string value
-pub fn prompt_string(message: &str, default: Option<&str>) -> Result<String> {
-    if let Some(def) = default {
-        print!("{} [{}]: ", message, def);
-    } else {
-        print!("{}: ", message);
-    }
-    io::stdout().flush()?;
-
-    let mut input = String::new();
-    io::stdin().read_line(&mut input)?;
-    let input = input.trim();
-
-    if input.is_empty() {
-        if let Some(def) = default {
-            return Ok(def.to_string());
-        }
-    }
-
-    Ok(input.to_string())
 }
