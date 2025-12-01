@@ -22,6 +22,10 @@ pub struct Config {
     #[serde(default)]
     pub template_image: Option<String>,
 
+    /// Directories containing binaries to include in the template image
+    #[serde(default = "default_binary_dirs")]
+    pub binary_dirs: Vec<String>,
+
     /// Environment variables to pass to containers
     #[serde(default)]
     pub env: HashMap<String, String>,
@@ -35,11 +39,16 @@ fn default_worktree_dir() -> String {
     "~/worktrees".to_string()
 }
 
+fn default_binary_dirs() -> Vec<String> {
+    vec!["~/.local/bin".to_string()]
+}
+
 impl Default for Config {
     fn default() -> Self {
         Self {
             worktree_dir: default_worktree_dir(),
             template_image: None,
+            binary_dirs: default_binary_dirs(),
             env: HashMap::new(),
             mounts: vec![
                 Mount {

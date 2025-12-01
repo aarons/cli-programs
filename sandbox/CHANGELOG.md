@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.3.0] - 2025-12-01
+
+### Added
+- Interactive mode when run without subcommands (menu-driven interface)
+- `binary_dirs` config option to specify directories containing binaries to include in template
+- Default `binary_dirs` is `["~/.local/bin"]`
+
+### Changed
+- Template now copies all executables from `binary_dirs` instead of building specific binaries from cargo workspace
+- Simplified build process - no longer requires being in the cli-programs workspace
+- Dockerfile template uses `COPY assets/bin/` for all binaries instead of individual COPY commands
+
+### Removed
+- Dependency on cargo workspace location during template build
+- Hardcoded binary list (`TEMPLATE_BINARIES`)
+
 ## [0.2.1] - 2025-11-30
 
 ### Changed
