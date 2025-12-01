@@ -18,7 +18,7 @@ impl LlmClient {
     pub fn new(preset_name: Option<&str>, debug: bool) -> Result<Self> {
         let config = Config::load().context("Failed to load LLM configuration")?;
 
-        let preset_name = preset_name.unwrap_or(&config.default_preset);
+        let preset_name = preset_name.unwrap_or_else(|| config.get_default_for_program("ask"));
         let preset = config
             .get_preset(preset_name)
             .context(format!("Unknown preset: {}", preset_name))?;

@@ -7,9 +7,13 @@ use crate::error::{LlmError, Result};
 /// Main configuration structure
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
-    /// Default preset to use when no --model flag is provided
+    /// Default preset to use when no --model flag is provided (fallback)
     #[serde(default = "default_preset")]
     pub default_preset: String,
+
+    /// Per-program default presets (program name -> preset name)
+    #[serde(default)]
+    pub defaults: HashMap<String, String>,
 
     /// Named model presets for quick access
     #[serde(default)]
@@ -92,6 +96,16 @@ impl Config {
             .ok_or_else(|| LlmError::InvalidPreset(name.to_string()))
     }
 
+    /// Get the default preset name for a specific program
+    ///
+    /// Falls back to `default_preset` if no program-specific default is set.
+    pub fn get_default_for_program(&self, program: &str) -> &str {
+        self.defaults
+            .get(program)
+            .map(String::as_str)
+            .unwrap_or(&self.default_preset)
+    }
+
     /// Get provider config by provider name
     pub fn get_provider_config(&self, provider: &str) -> Option<&ProviderConfig> {
         self.providers.get(provider)
@@ -113,6 +127,7 @@ impl Default for Config {
 
         Self {
             default_preset: "claude-cli".to_string(),
+            defaults: HashMap::new(),
             presets,
             providers: HashMap::new(),
         }
@@ -153,5 +168,29 @@ mod tests {
     fn test_config_path() {
         let path = Config::config_path().unwrap();
         assert!(path.to_string_lossy().contains(".config/cli-programs/llm.toml"));
+    }
+
+    #[test]
+    fn test_get_default_for_program() {
+        let mut config = Config::default();
+
+        // Without program-specific default, should fall back to default_preset
+        assert_eq!(config.get_default_for_program("gc"), "claude-cli");
+        assert_eq!(config.get_default_for_program("ask"), "claude-cli");
+
+        // Add program-specific defaults
+        config
+            .defaults
+            .insert("gc".to_string(), "anthropic-sonnet".to_string());
+        config
+            .defaults
+            .insert("ask".to_string(), "qwen3".to_string());
+
+        // Should now return program-specific defaults
+        assert_eq!(config.get_default_for_program("gc"), "anthropic-sonnet");
+        assert_eq!(config.get_default_for_program("ask"), "qwen3");
+
+        // Unknown program should still fall back
+        assert_eq!(config.get_default_for_program("bookname"), "claude-cli");
     }
 }

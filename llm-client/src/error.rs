@@ -11,7 +11,7 @@ pub enum LlmError {
     #[error("Rate limit exceeded{}", .retry_after.map(|s| format!(". Retry after {} seconds", s)).unwrap_or_default())]
     RateLimited { retry_after: Option<u64> },
 
-    #[error("API error: {message}")]
+    #[error("API error{}: {message}", status_code.map(|c| format!(" (HTTP {})", c)).unwrap_or_default())]
     ApiError {
         message: String,
         status_code: Option<u16>,
