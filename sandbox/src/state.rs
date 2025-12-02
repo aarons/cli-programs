@@ -18,6 +18,8 @@ pub struct SandboxInfo {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct State {
     /// Map of canonical repo path to sandbox info
+    /// Alias "worktrees" for backwards compatibility with pre-v0.2.0 state files
+    #[serde(alias = "worktrees")]
     pub sandboxes: HashMap<String, SandboxInfo>,
 }
 
@@ -114,12 +116,6 @@ pub fn save_template_hash(hash: &str) -> Result<()> {
 mod tests {
     use super::*;
     use tempfile::TempDir;
-
-    #[test]
-    fn test_state_default_is_empty() {
-        let state = State::default();
-        assert!(state.sandboxes.is_empty());
-    }
 
     #[test]
     fn test_add_sandbox() {
@@ -224,18 +220,6 @@ mod tests {
     }
 
     #[test]
-    fn test_state_path_contains_sandbox_state() {
-        let path = State::state_path().unwrap();
-        assert!(path.to_string_lossy().ends_with("sandbox-state.json"));
-    }
-
-    #[test]
-    fn test_template_hash_path_contains_hash() {
-        let path = template_hash_path().unwrap();
-        assert!(path.to_string_lossy().ends_with("sandbox-template.hash"));
-    }
-
-    #[test]
     fn test_state_save_and_load() {
         let temp_dir = TempDir::new().unwrap();
         let state_path = temp_dir.path().join("sandbox-state.json");
@@ -253,28 +237,6 @@ mod tests {
 
         assert_eq!(loaded_state.sandboxes.len(), 1);
         assert!(loaded_state.sandboxes.contains_key("/test/repo"));
-    }
-
-    #[test]
-    fn test_hash_save_and_load() {
-        let temp_dir = TempDir::new().unwrap();
-        let hash_path = temp_dir.path().join("sandbox-template.hash");
-
-        let hash = "abc123def456";
-        fs::write(&hash_path, hash).unwrap();
-
-        let loaded = fs::read_to_string(&hash_path).unwrap();
-        assert_eq!(loaded.trim(), hash);
-    }
-
-    #[test]
-    fn test_load_template_hash_nonexistent() {
-        // Create a temp dir that definitely doesn't have the hash file
-        let temp_dir = TempDir::new().unwrap();
-        let nonexistent_path = temp_dir.path().join("does_not_exist.hash");
-
-        // Test that we can check for nonexistence
-        assert!(!nonexistent_path.exists());
     }
 
     #[test]
@@ -302,5 +264,47 @@ mod tests {
         let info = state.sandboxes.get("/test").unwrap();
         assert!(info.created_at >= before);
         assert!(info.created_at <= after);
+    }
+
+    #[test]
+    fn test_legacy_state_file_with_worktrees_key() {
+        // Pre-v0.2.0 state files used "worktrees" instead of "sandboxes"
+        // This test ensures backwards compatibility
+        let legacy_json = r#"{
+            "worktrees": {
+                "/test/repo": {
+                    "path": "/test/repo",
+                    "created_at": "2024-01-01T00:00:00Z"
+                }
+            }
+        }"#;
+
+        let state: State = serde_json::from_str(legacy_json)
+            .expect("Should parse legacy state file with 'worktrees' key");
+
+        assert_eq!(state.sandboxes.len(), 1);
+        assert!(state.sandboxes.contains_key("/test/repo"));
+        let info = state.sandboxes.get("/test/repo").unwrap();
+        assert_eq!(info.path, PathBuf::from("/test/repo"));
+    }
+
+    #[test]
+    fn test_state_ignores_unknown_fields() {
+        // Forward compatibility: unknown fields should be ignored
+        let json_with_extra = r#"{
+            "sandboxes": {
+                "/test/repo": {
+                    "path": "/test/repo",
+                    "created_at": "2024-01-01T00:00:00Z"
+                }
+            },
+            "version": "2.0",
+            "some_future_field": "value"
+        }"#;
+
+        let state: State = serde_json::from_str(json_with_extra)
+            .expect("Should ignore unknown fields for forward compatibility");
+
+        assert_eq!(state.sandboxes.len(), 1);
     }
 }

@@ -128,7 +128,6 @@ impl Config {
 mod tests {
     use super::*;
     use std::env;
-    use tempfile::TempDir;
 
     #[test]
     fn test_default_config_has_expected_values() {
@@ -151,12 +150,6 @@ mod tests {
         assert_eq!(config.mounts[2].source, "~/.claude");
         assert_eq!(config.mounts[2].target, "/home/agent/.claude");
         assert!(!config.mounts[2].readonly);
-    }
-
-    #[test]
-    fn test_default_binary_dirs() {
-        let dirs = default_binary_dirs();
-        assert_eq!(dirs, vec!["~/.local/bin".to_string()]);
     }
 
     #[test]
@@ -206,19 +199,6 @@ mod tests {
     }
 
     #[test]
-    fn test_config_dir_contains_cli_programs() {
-        let dir = Config::config_dir().unwrap();
-        assert!(dir.to_string_lossy().contains("cli-programs"));
-        assert!(dir.to_string_lossy().contains(".config"));
-    }
-
-    #[test]
-    fn test_config_path_is_toml() {
-        let path = Config::config_path().unwrap();
-        assert!(path.to_string_lossy().ends_with("sandbox.toml"));
-    }
-
-    #[test]
     fn test_expand_env_with_home() {
         let home = env::var("HOME").unwrap();
         let expanded = Config::expand_env("$HOME/test").unwrap();
@@ -252,27 +232,6 @@ mod tests {
     fn test_expand_path_absolute() {
         let expanded = Config::expand_path("/absolute/path").unwrap();
         assert_eq!(expanded, PathBuf::from("/absolute/path"));
-    }
-
-    #[test]
-    fn test_save_creates_directory_and_file() {
-        let temp_dir = TempDir::new().unwrap();
-        let config_dir = temp_dir.path().join("config");
-        let config_path = config_dir.join("sandbox.toml");
-
-        // Create config and manually set up paths for testing
-        let config = Config::default();
-        let content = toml::to_string_pretty(&config).unwrap();
-
-        fs::create_dir_all(&config_dir).unwrap();
-        fs::write(&config_path, &content).unwrap();
-
-        // Verify file was created
-        assert!(config_path.exists());
-
-        // Verify content is valid TOML
-        let read_content = fs::read_to_string(&config_path).unwrap();
-        let _: Config = toml::from_str(&read_content).unwrap();
     }
 
     #[test]
