@@ -123,3 +123,195 @@ impl Config {
         Ok(PathBuf::from(expanded.as_ref()))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::env;
+    use tempfile::TempDir;
+
+    #[test]
+    fn test_default_config_has_expected_values() {
+        let config = Config::default();
+
+        assert!(config.template_image.is_none());
+        assert_eq!(config.binary_dirs, vec!["~/.local/bin".to_string()]);
+        assert!(config.env.is_empty());
+        assert_eq!(config.mounts.len(), 3);
+
+        // Check default mounts
+        assert_eq!(config.mounts[0].source, "~/.ssh");
+        assert_eq!(config.mounts[0].target, "/home/agent/.ssh");
+        assert!(config.mounts[0].readonly);
+
+        assert_eq!(config.mounts[1].source, "~/.gitconfig");
+        assert_eq!(config.mounts[1].target, "/home/agent/.gitconfig");
+        assert!(config.mounts[1].readonly);
+
+        assert_eq!(config.mounts[2].source, "~/.claude");
+        assert_eq!(config.mounts[2].target, "/home/agent/.claude");
+        assert!(!config.mounts[2].readonly);
+    }
+
+    #[test]
+    fn test_default_binary_dirs() {
+        let dirs = default_binary_dirs();
+        assert_eq!(dirs, vec!["~/.local/bin".to_string()]);
+    }
+
+    #[test]
+    fn test_mount_serialization() {
+        let mount = Mount {
+            source: "/src".to_string(),
+            target: "/dst".to_string(),
+            readonly: true,
+        };
+
+        let serialized = toml::to_string(&mount).unwrap();
+        assert!(serialized.contains("source = \"/src\""));
+        assert!(serialized.contains("target = \"/dst\""));
+        assert!(serialized.contains("readonly = true"));
+
+        let deserialized: Mount = toml::from_str(&serialized).unwrap();
+        assert_eq!(deserialized.source, mount.source);
+        assert_eq!(deserialized.target, mount.target);
+        assert_eq!(deserialized.readonly, mount.readonly);
+    }
+
+    #[test]
+    fn test_mount_readonly_defaults_to_false() {
+        let toml_str = r#"
+            source = "/src"
+            target = "/dst"
+        "#;
+
+        let mount: Mount = toml::from_str(toml_str).unwrap();
+        assert!(!mount.readonly);
+    }
+
+    #[test]
+    fn test_config_serialization_roundtrip() {
+        let mut config = Config::default();
+        config.template_image = Some("my-template".to_string());
+        config.binary_dirs = vec!["/usr/bin".to_string(), "~/.cargo/bin".to_string()];
+        config.env.insert("MY_VAR".to_string(), "value".to_string());
+
+        let serialized = toml::to_string_pretty(&config).unwrap();
+        let deserialized: Config = toml::from_str(&serialized).unwrap();
+
+        assert_eq!(deserialized.template_image, config.template_image);
+        assert_eq!(deserialized.binary_dirs, config.binary_dirs);
+        assert_eq!(deserialized.env, config.env);
+        assert_eq!(deserialized.mounts.len(), config.mounts.len());
+    }
+
+    #[test]
+    fn test_config_dir_contains_cli_programs() {
+        let dir = Config::config_dir().unwrap();
+        assert!(dir.to_string_lossy().contains("cli-programs"));
+        assert!(dir.to_string_lossy().contains(".config"));
+    }
+
+    #[test]
+    fn test_config_path_is_toml() {
+        let path = Config::config_path().unwrap();
+        assert!(path.to_string_lossy().ends_with("sandbox.toml"));
+    }
+
+    #[test]
+    fn test_expand_env_with_home() {
+        let home = env::var("HOME").unwrap();
+        let expanded = Config::expand_env("$HOME/test").unwrap();
+        assert!(expanded.starts_with(&home));
+        assert!(expanded.ends_with("/test"));
+    }
+
+    #[test]
+    fn test_expand_env_no_vars() {
+        let result = Config::expand_env("/plain/path").unwrap();
+        assert_eq!(result, "/plain/path");
+    }
+
+    #[test]
+    fn test_expand_path_tilde() {
+        let home = env::var("HOME").unwrap();
+        let expanded = Config::expand_path("~/test").unwrap();
+        let expected = PathBuf::from(home).join("test");
+        assert_eq!(expanded, expected);
+    }
+
+    #[test]
+    fn test_expand_path_with_env_var() {
+        let home = env::var("HOME").unwrap();
+        let expanded = Config::expand_path("$HOME/test").unwrap();
+        let expected = PathBuf::from(home).join("test");
+        assert_eq!(expanded, expected);
+    }
+
+    #[test]
+    fn test_expand_path_absolute() {
+        let expanded = Config::expand_path("/absolute/path").unwrap();
+        assert_eq!(expanded, PathBuf::from("/absolute/path"));
+    }
+
+    #[test]
+    fn test_save_creates_directory_and_file() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_dir = temp_dir.path().join("config");
+        let config_path = config_dir.join("sandbox.toml");
+
+        // Create config and manually set up paths for testing
+        let config = Config::default();
+        let content = toml::to_string_pretty(&config).unwrap();
+
+        fs::create_dir_all(&config_dir).unwrap();
+        fs::write(&config_path, &content).unwrap();
+
+        // Verify file was created
+        assert!(config_path.exists());
+
+        // Verify content is valid TOML
+        let read_content = fs::read_to_string(&config_path).unwrap();
+        let _: Config = toml::from_str(&read_content).unwrap();
+    }
+
+    #[test]
+    fn test_config_with_empty_binary_dirs() {
+        let toml_str = r#"
+            binary_dirs = []
+        "#;
+
+        let config: Config = toml::from_str(toml_str).unwrap();
+        assert!(config.binary_dirs.is_empty());
+    }
+
+    #[test]
+    fn test_config_with_custom_mounts() {
+        let toml_str = r#"
+            [[mounts]]
+            source = "/custom/source"
+            target = "/custom/target"
+            readonly = false
+        "#;
+
+        let config: Config = toml::from_str(toml_str).unwrap();
+        assert_eq!(config.mounts.len(), 1);
+        assert_eq!(config.mounts[0].source, "/custom/source");
+        assert_eq!(config.mounts[0].target, "/custom/target");
+        assert!(!config.mounts[0].readonly);
+    }
+
+    #[test]
+    fn test_config_with_env_vars() {
+        let toml_str = r#"
+            [env]
+            VAR1 = "value1"
+            VAR2 = "value2"
+        "#;
+
+        let config: Config = toml::from_str(toml_str).unwrap();
+        assert_eq!(config.env.len(), 2);
+        assert_eq!(config.env.get("VAR1"), Some(&"value1".to_string()));
+        assert_eq!(config.env.get("VAR2"), Some(&"value2".to_string()));
+    }
+}

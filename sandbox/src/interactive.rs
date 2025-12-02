@@ -108,3 +108,184 @@ pub fn confirm(message: &str) -> Result<bool> {
 
     Ok(input.eq_ignore_ascii_case("y") || input.eq_ignore_ascii_case("yes"))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::Utc;
+    use std::path::PathBuf;
+
+    fn create_test_state_with_sandboxes(count: usize) -> State {
+        let mut state = State::default();
+        for i in 0..count {
+            let path = PathBuf::from(format!("/test/repo{}", i));
+            state.sandboxes.insert(
+                path.to_string_lossy().to_string(),
+                SandboxInfo {
+                    path,
+                    created_at: Utc::now() - chrono::Duration::hours(i as i64),
+                },
+            );
+        }
+        state
+    }
+
+    #[test]
+    fn test_selection_entry_fields() {
+        let entry = SelectionEntry {
+            key: "/test/repo".to_string(),
+            name: "repo".to_string(),
+            info: SandboxInfo {
+                path: PathBuf::from("/test/repo"),
+                created_at: Utc::now(),
+            },
+            status: SandboxStatus::Running,
+        };
+
+        assert_eq!(entry.key, "/test/repo");
+        assert_eq!(entry.name, "repo");
+        assert_eq!(entry.status, SandboxStatus::Running);
+    }
+
+    #[test]
+    fn test_format_status_running() {
+        let formatted = format_status(&SandboxStatus::Running);
+        assert_eq!(formatted, "[running]");
+    }
+
+    #[test]
+    fn test_format_status_stopped() {
+        let formatted = format_status(&SandboxStatus::Stopped);
+        assert_eq!(formatted, "[stopped]");
+    }
+
+    #[test]
+    fn test_format_status_not_found() {
+        let formatted = format_status(&SandboxStatus::NotFound);
+        assert_eq!(formatted, "[no container]");
+    }
+
+    #[test]
+    fn test_get_sandbox_entries_empty_state() {
+        let state = State::default();
+        let entries = get_sandbox_entries(&state).unwrap();
+        assert!(entries.is_empty());
+    }
+
+    #[test]
+    fn test_get_sandbox_entries_single() {
+        let mut state = State::default();
+        state.add_sandbox(PathBuf::from("/test/my-repo"));
+
+        let entries = get_sandbox_entries(&state).unwrap();
+
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].name, "my-repo");
+        assert_eq!(entries[0].key, "/test/my-repo");
+    }
+
+    #[test]
+    fn test_get_sandbox_entries_multiple() {
+        let state = create_test_state_with_sandboxes(3);
+        let entries = get_sandbox_entries(&state).unwrap();
+
+        assert_eq!(entries.len(), 3);
+    }
+
+    #[test]
+    fn test_get_sandbox_entries_sorted_by_creation_time() {
+        let mut state = State::default();
+
+        // Add sandboxes with different creation times
+        let older_time = Utc::now() - chrono::Duration::hours(2);
+        let newer_time = Utc::now();
+
+        state.sandboxes.insert(
+            "/older".to_string(),
+            SandboxInfo {
+                path: PathBuf::from("/older"),
+                created_at: older_time,
+            },
+        );
+        state.sandboxes.insert(
+            "/newer".to_string(),
+            SandboxInfo {
+                path: PathBuf::from("/newer"),
+                created_at: newer_time,
+            },
+        );
+
+        let entries = get_sandbox_entries(&state).unwrap();
+
+        // Newer should be first (sorted by most recent)
+        assert_eq!(entries[0].key, "/newer");
+        assert_eq!(entries[1].key, "/older");
+    }
+
+    #[test]
+    fn test_get_sandbox_entries_derives_name_from_path() {
+        let mut state = State::default();
+        state.add_sandbox(PathBuf::from("/home/user/projects/awesome-project"));
+
+        let entries = get_sandbox_entries(&state).unwrap();
+
+        assert_eq!(entries[0].name, "awesome-project");
+    }
+
+    #[test]
+    fn test_display_sandbox_list_empty() {
+        // Just ensure it doesn't panic
+        let entries: Vec<SelectionEntry> = vec![];
+        display_sandbox_list(&entries);
+    }
+
+    #[test]
+    fn test_display_sandbox_list_with_entries() {
+        // Just ensure it doesn't panic
+        let entries = vec![
+            SelectionEntry {
+                key: "/test/repo1".to_string(),
+                name: "repo1".to_string(),
+                info: SandboxInfo {
+                    path: PathBuf::from("/test/repo1"),
+                    created_at: Utc::now(),
+                },
+                status: SandboxStatus::Running,
+            },
+            SelectionEntry {
+                key: "/test/repo2".to_string(),
+                name: "repo2".to_string(),
+                info: SandboxInfo {
+                    path: PathBuf::from("/test/repo2"),
+                    created_at: Utc::now(),
+                },
+                status: SandboxStatus::Stopped,
+            },
+        ];
+        display_sandbox_list(&entries);
+    }
+
+    #[test]
+    fn test_selection_entry_with_different_statuses() {
+        let statuses = [
+            SandboxStatus::Running,
+            SandboxStatus::Stopped,
+            SandboxStatus::NotFound,
+        ];
+
+        for status in statuses {
+            let entry = SelectionEntry {
+                key: "/test".to_string(),
+                name: "test".to_string(),
+                info: SandboxInfo {
+                    path: PathBuf::from("/test"),
+                    created_at: Utc::now(),
+                },
+                status: status.clone(),
+            };
+
+            // Verify the status is correctly stored
+            assert_eq!(entry.status, status);
+        }
+    }
+}

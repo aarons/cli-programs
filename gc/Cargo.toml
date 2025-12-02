@@ -19,3 +19,4 @@ tokio = { version = "1", features = ["rt", "macros"] }
 [dev-dependencies]
 assert_cmd = "2.0"
 predicates = "3.0"
+tempfile = "3"
