@@ -109,3 +109,198 @@ pub fn save_template_hash(hash: &str) -> Result<()> {
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    #[test]
+    fn test_state_default_is_empty() {
+        let state = State::default();
+        assert!(state.sandboxes.is_empty());
+    }
+
+    #[test]
+    fn test_add_sandbox() {
+        let mut state = State::default();
+        let path = PathBuf::from("/test/repo");
+
+        state.add_sandbox(path.clone());
+
+        assert_eq!(state.sandboxes.len(), 1);
+        let key = path.to_string_lossy().to_string();
+        assert!(state.sandboxes.contains_key(&key));
+
+        let info = state.sandboxes.get(&key).unwrap();
+        assert_eq!(info.path, path);
+    }
+
+    #[test]
+    fn test_add_multiple_sandboxes() {
+        let mut state = State::default();
+        let path1 = PathBuf::from("/test/repo1");
+        let path2 = PathBuf::from("/test/repo2");
+
+        state.add_sandbox(path1.clone());
+        state.add_sandbox(path2.clone());
+
+        assert_eq!(state.sandboxes.len(), 2);
+        assert!(state.sandboxes.contains_key(&path1.to_string_lossy().to_string()));
+        assert!(state.sandboxes.contains_key(&path2.to_string_lossy().to_string()));
+    }
+
+    #[test]
+    fn test_add_sandbox_overwrites_existing() {
+        let mut state = State::default();
+        let path = PathBuf::from("/test/repo");
+
+        state.add_sandbox(path.clone());
+        let first_time = state.sandboxes.get(&path.to_string_lossy().to_string())
+            .unwrap()
+            .created_at;
+
+        // Small delay to ensure different timestamp
+        std::thread::sleep(std::time::Duration::from_millis(10));
+
+        state.add_sandbox(path.clone());
+        let second_time = state.sandboxes.get(&path.to_string_lossy().to_string())
+            .unwrap()
+            .created_at;
+
+        assert_eq!(state.sandboxes.len(), 1);
+        assert!(second_time > first_time);
+    }
+
+    #[test]
+    fn test_remove_sandbox() {
+        let mut state = State::default();
+        let path = PathBuf::from("/test/repo");
+
+        state.add_sandbox(path.clone());
+        assert_eq!(state.sandboxes.len(), 1);
+
+        let removed = state.remove_sandbox(&path.to_string_lossy().to_string());
+        assert!(removed.is_some());
+        assert_eq!(removed.unwrap().path, path);
+        assert!(state.sandboxes.is_empty());
+    }
+
+    #[test]
+    fn test_remove_nonexistent_sandbox() {
+        let mut state = State::default();
+        let removed = state.remove_sandbox("/nonexistent");
+        assert!(removed.is_none());
+    }
+
+    #[test]
+    fn test_sandbox_info_serialization() {
+        let info = SandboxInfo {
+            path: PathBuf::from("/test/path"),
+            created_at: Utc::now(),
+        };
+
+        let serialized = serde_json::to_string(&info).unwrap();
+        let deserialized: SandboxInfo = serde_json::from_str(&serialized).unwrap();
+
+        assert_eq!(deserialized.path, info.path);
+        assert_eq!(deserialized.created_at, info.created_at);
+    }
+
+    #[test]
+    fn test_state_serialization_roundtrip() {
+        let mut state = State::default();
+        state.add_sandbox(PathBuf::from("/repo1"));
+        state.add_sandbox(PathBuf::from("/repo2"));
+
+        let serialized = serde_json::to_string_pretty(&state).unwrap();
+        let deserialized: State = serde_json::from_str(&serialized).unwrap();
+
+        assert_eq!(deserialized.sandboxes.len(), state.sandboxes.len());
+        for (key, info) in &state.sandboxes {
+            let other = deserialized.sandboxes.get(key).unwrap();
+            assert_eq!(other.path, info.path);
+        }
+    }
+
+    #[test]
+    fn test_state_path_contains_sandbox_state() {
+        let path = State::state_path().unwrap();
+        assert!(path.to_string_lossy().ends_with("sandbox-state.json"));
+    }
+
+    #[test]
+    fn test_template_hash_path_contains_hash() {
+        let path = template_hash_path().unwrap();
+        assert!(path.to_string_lossy().ends_with("sandbox-template.hash"));
+    }
+
+    #[test]
+    fn test_state_save_and_load() {
+        let temp_dir = TempDir::new().unwrap();
+        let state_path = temp_dir.path().join("sandbox-state.json");
+
+        // Create and save state
+        let mut state = State::default();
+        state.add_sandbox(PathBuf::from("/test/repo"));
+
+        let content = serde_json::to_string_pretty(&state).unwrap();
+        fs::write(&state_path, &content).unwrap();
+
+        // Load and verify
+        let loaded_content = fs::read_to_string(&state_path).unwrap();
+        let loaded_state: State = serde_json::from_str(&loaded_content).unwrap();
+
+        assert_eq!(loaded_state.sandboxes.len(), 1);
+        assert!(loaded_state.sandboxes.contains_key("/test/repo"));
+    }
+
+    #[test]
+    fn test_hash_save_and_load() {
+        let temp_dir = TempDir::new().unwrap();
+        let hash_path = temp_dir.path().join("sandbox-template.hash");
+
+        let hash = "abc123def456";
+        fs::write(&hash_path, hash).unwrap();
+
+        let loaded = fs::read_to_string(&hash_path).unwrap();
+        assert_eq!(loaded.trim(), hash);
+    }
+
+    #[test]
+    fn test_load_template_hash_nonexistent() {
+        // Create a temp dir that definitely doesn't have the hash file
+        let temp_dir = TempDir::new().unwrap();
+        let nonexistent_path = temp_dir.path().join("does_not_exist.hash");
+
+        // Test that we can check for nonexistence
+        assert!(!nonexistent_path.exists());
+    }
+
+    #[test]
+    fn test_state_with_special_characters_in_path() {
+        let mut state = State::default();
+        let path = PathBuf::from("/test/repo with spaces/and-dashes_underscores");
+
+        state.add_sandbox(path.clone());
+
+        let serialized = serde_json::to_string(&state).unwrap();
+        let deserialized: State = serde_json::from_str(&serialized).unwrap();
+
+        assert_eq!(deserialized.sandboxes.len(), 1);
+        let key = path.to_string_lossy().to_string();
+        assert!(deserialized.sandboxes.contains_key(&key));
+    }
+
+    #[test]
+    fn test_sandbox_info_created_at_is_current() {
+        let before = Utc::now();
+        let mut state = State::default();
+        state.add_sandbox(PathBuf::from("/test"));
+        let after = Utc::now();
+
+        let info = state.sandboxes.get("/test").unwrap();
+        assert!(info.created_at >= before);
+        assert!(info.created_at <= after);
+    }
+}

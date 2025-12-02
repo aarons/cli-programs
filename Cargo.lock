@@ -534,6 +534,7 @@ dependencies = [
  "git2",
  "llm-client",
  "predicates",
+ "tempfile",
  "tokio",
  "unicode-segmentation",
  "url",

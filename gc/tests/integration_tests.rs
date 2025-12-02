@@ -1,12 +1,18 @@
 // Integration tests for gc CLI
 
+use assert_cmd::cargo::cargo_bin_cmd;
 use assert_cmd::Command;
 use predicates::prelude::*;
+use tempfile::TempDir;
+
+fn gc_cmd() -> Command {
+    cargo_bin_cmd!("gc").into()
+}
 
 #[test]
 fn test_help_flag() {
-    let mut cmd = Command::cargo_bin("gc").unwrap();
-    cmd.arg("--help")
+    gc_cmd()
+        .arg("--help")
         .assert()
         .success()
         .stdout(predicate::str::contains("Generate conventional commit messages"));
@@ -14,29 +20,21 @@ fn test_help_flag() {
 
 #[test]
 fn test_version_info() {
-    let mut cmd = Command::cargo_bin("gc").unwrap();
-    cmd.arg("--version")
+    gc_cmd()
+        .arg("--version")
         .assert()
         .success();
 }
 
 #[test]
 fn test_not_in_git_repo() {
-    // Create a temporary directory that's not a git repo
-    let temp_dir = assert_cmd::cargo::cargo_bin("gc")
-        .parent()
-        .unwrap()
-        .join("../../../test_temp");
-    std::fs::create_dir_all(&temp_dir).ok();
+    let temp_dir = TempDir::new().unwrap();
 
-    let mut cmd = Command::cargo_bin("gc").unwrap();
-    cmd.current_dir(&temp_dir)
+    gc_cmd()
+        .current_dir(temp_dir.path())
         .assert()
         .failure()
         .stderr(predicate::str::contains("Not in a git repository"));
-
-    // Cleanup
-    std::fs::remove_dir_all(&temp_dir).ok();
 }
 
 // TODO: Add more integration tests
