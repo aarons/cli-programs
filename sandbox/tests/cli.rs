@@ -500,6 +500,55 @@ fn test_list_handles_nonexistent_sandbox_paths() {
 }
 
 // ============================================================================
+// Legacy State File Compatibility Tests
+// ============================================================================
+
+#[test]
+fn test_list_with_legacy_worktrees_state_file() {
+    let temp_dir = TempDir::new().unwrap();
+    let config_dir = setup_test_config(&temp_dir);
+
+    // Create state file using legacy "worktrees" key (pre-v0.2.0 format)
+    let state_path = config_dir.join("sandbox-state.json");
+    let legacy_state = r#"{
+        "worktrees": {
+            "/test/my-legacy-project": {
+                "path": "/test/my-legacy-project",
+                "created_at": "2024-01-01T00:00:00Z"
+            }
+        }
+    }"#;
+    fs::write(&state_path, legacy_state).unwrap();
+
+    // Should successfully read the legacy format
+    sandbox_cmd()
+        .arg("list")
+        .env("HOME", temp_dir.path())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("my-legacy-project"))
+        .stdout(predicate::str::contains("/test/my-legacy-project"));
+}
+
+#[test]
+fn test_handles_state_file_missing_sandboxes_field() {
+    let temp_dir = TempDir::new().unwrap();
+    let config_dir = setup_test_config(&temp_dir);
+
+    // Create state file missing the sandboxes field entirely
+    let state_path = config_dir.join("sandbox-state.json");
+    fs::write(&state_path, r#"{"version": "1.0"}"#).unwrap();
+
+    // Should fail gracefully with a helpful error
+    sandbox_cmd()
+        .arg("list")
+        .env("HOME", temp_dir.path())
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("parse").or(predicate::str::contains("Failed")));
+}
+
+// ============================================================================
 // Config File Structure Tests
 // ============================================================================
 

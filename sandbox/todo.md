@@ -34,8 +34,17 @@
 
 - [ ] **Shell completions** - Generate completions for bash/zsh/fish
 
+## Code Quality / Refactoring
+
+- [ ] **Rename `worktree.rs` to `repo.rs` or `git.rs`** - After v0.2.0 refactor removed git worktree dependency, this module only contains `get_repo_name()` and `get_repo_root()`. Name no longer reflects purpose.
+
+- [ ] **Remove redundant `path` field in `SandboxInfo`** - The path is stored both as the HashMap key and inside SandboxInfo. Could simplify to just store `created_at` in the value. Requires state file migration.
+
+- [ ] **Add version field to state file** - Currently using serde alias for backwards compatibility. A version field would make future migrations explicit: `{"version": 1, "sandboxes": {...}}`. With `#[serde(default)]` on version, old files default to 0.
+
+- [ ] **Fix `test_state_save_and_load` to test actual functions** - Currently manually writes/reads files instead of calling `State::load()`/`State::save()`. Requires mocking the config directory.
+
 ## Considerations
 
 - The `docker sandbox` command is relatively new - monitor for API changes
-- Worktree names must be unique across all repositories (consider namespacing by repo)
-- Container naming uses path hash - changing worktree location breaks association
+- Container naming uses path hash - changing repo location breaks association
