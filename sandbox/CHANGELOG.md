@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.4.0] - 2025-12-02
+
+### Changed
+- **Breaking**: Sandboxes now keyed by canonical repository path instead of user-provided names
+- Replaced git worktree-based sandboxes with direct repository binding
+- `new`, `resume`, and `remove` commands now use interactive selection instead of requiring explicit names
+- Moved `~/.claude` mount from hardcoded docker setup to default mounts in config
+
+### Removed
+- Git worktree dependency - no longer creates worktrees for sandboxes
+- Worktree directory configuration and branch tracking
+- Name parameter from CLI commands (now fully interactive)
+
+### Added
+- Backwards compatibility for legacy state files using 'worktrees' key (pre-v0.4.0)
+- Comprehensive unit and integration tests with TempDir isolation
+
 ## [0.3.0] - 2025-12-01
 
 ### Added
