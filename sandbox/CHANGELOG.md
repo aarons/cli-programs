@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.4.1] - 2025-12-02
+
+### Fixed
+- Resume command no longer hangs when attaching to running sandboxes
+- Credentials now pass through from host instead of requiring manual authentication
+
 ## [0.4.0] - 2025-12-02
 
 ### Changed
