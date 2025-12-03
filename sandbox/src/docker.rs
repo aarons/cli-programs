@@ -242,8 +242,8 @@ pub fn start_sandbox(workspace: &Path, config: &Config) -> Result<()> {
         cmd.args(["--template", template]);
     }
 
-    // Credentials none since we mount ~/.claude
-    cmd.args(["--credentials=none"]);
+    // Use host credentials for authentication
+    cmd.args(["--credentials=host"]);
 
     // Name the container for tracking
     let container_name = get_container_name(workspace);
@@ -307,25 +307,6 @@ pub fn remove_sandbox(workspace: &Path) -> Result<()> {
         if !stderr.contains("No such container") {
             bail!("Failed to remove sandbox: {}", stderr);
         }
-    }
-
-    Ok(())
-}
-
-/// Attach to a running sandbox
-pub fn attach_sandbox(workspace: &Path) -> Result<()> {
-    let container_name = get_container_name(workspace);
-
-    let status = Command::new("docker")
-        .args(["attach", &container_name])
-        .stdout(Stdio::inherit())
-        .stderr(Stdio::inherit())
-        .stdin(Stdio::inherit())
-        .status()
-        .context("Failed to attach to sandbox")?;
-
-    if !status.success() {
-        bail!("Failed to attach to sandbox");
     }
 
     Ok(())

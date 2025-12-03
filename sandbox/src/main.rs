@@ -11,8 +11,8 @@ use std::path::PathBuf;
 
 use config::Config;
 use docker::{
-    build_template, check_docker, check_docker_sandbox, remove_sandbox, sandbox_status,
-    start_sandbox, template_exists, template_needs_rebuild, SandboxStatus,
+    build_template, check_docker, check_docker_sandbox, remove_sandbox, start_sandbox,
+    template_exists, template_needs_rebuild,
 };
 use interactive::{confirm, display_sandbox_list, get_sandbox_entries, prompt_selection};
 use state::State;
@@ -216,19 +216,9 @@ fn cmd_resume() -> Result<()> {
         None => return Ok(()),
     };
 
-    // Check sandbox status and start if needed
-    let status = sandbox_status(&entry.info.path)?;
-
-    match status {
-        SandboxStatus::Running => {
-            println!("Attaching to running sandbox '{}'...", entry.name);
-            docker::attach_sandbox(&entry.info.path)?;
-        }
-        SandboxStatus::Stopped | SandboxStatus::NotFound => {
-            println!("Starting sandbox '{}'...", entry.name);
-            start_sandbox(&entry.info.path, &config)?;
-        }
-    }
+    // Docker Sandbox handles reconnection automatically - just call run again
+    println!("Resuming sandbox '{}'...", entry.name);
+    start_sandbox(&entry.info.path, &config)?;
 
     Ok(())
 }
