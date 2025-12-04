@@ -71,7 +71,7 @@ impl Config {
 
     /// Get the config file path
     pub fn config_path() -> Result<PathBuf> {
-        Ok(Self::config_dir()?.join("sandbox.toml"))
+        Ok(Self::config_dir()?.join("sandy.toml"))
     }
 
     /// Load configuration from file, creating default if it doesn't exist

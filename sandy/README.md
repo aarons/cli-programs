@@ -1,19 +1,19 @@
-# sandbox
+# sandy
 
-A CLI tool for managing Claude Code development environments using git worktrees and Docker sandboxes.
+A CLI tool for managing Claude Code development environments using Docker containers.
 
 ## Overview
 
-`sandbox` creates isolated development environments by combining:
-- **Git worktrees**: Separate working directories from the same repository
-- **Docker sandboxes**: Containerized Claude Code environments with `--dangerously-skip-permissions`
+`sandy` creates isolated development environments by combining:
+- **Docker containers**: Containerized Claude Code environments with `--dangerously-skip-permissions`
+- **Host credential passthrough**: Uses your existing Claude subscription seamlessly
 
 This enables fully autonomous Claude work in isolated environments while sharing your authentication and configuration.
 
 ## Installation
 
 ```bash
-cargo install --path sandbox
+cargo install --path sandy
 # Or using the workspace installer:
 cargo run -p update-cli-programs --release
 ```
@@ -27,18 +27,17 @@ cargo run -p update-cli-programs --release
 
 ```bash
 # Run without arguments for interactive mode
-sandbox
+sandy
 
 # Or use direct commands
-sandbox new feature-auth
+sandy new
 ```
 
-On first run, `sandbox` automatically:
+On first run, `sandy` automatically:
 1. Creates the default Dockerfile template
 2. Copies binaries from `~/.local/bin` into the template
-3. Builds the sandbox image (`sandbox-dev`)
-4. Creates a git worktree at `~/worktrees/<repo>-<name>`
-5. Starts a Docker sandbox with Claude Code
+3. Builds the sandy image (`sandy-dev`)
+4. Starts a Docker container with Claude Code
 
 No configuration required - sensible defaults are used.
 
@@ -48,60 +47,45 @@ No configuration required - sensible defaults are used.
 
 ```bash
 # In a git repository
-sandbox new feature-auth
-
-# Specify a different repository
-sandbox new feature-auth --repo ~/code/my-project
-
-# Create from a specific branch
-sandbox new bugfix-123 --branch develop
+sandy new
 ```
 
 ### Resume an existing sandbox
 
 ```bash
 # Interactive selection
-sandbox resume
-
-# By name
-sandbox resume feature-auth
+sandy resume
 ```
 
 ### List all sandboxes
 
 ```bash
-sandbox list
+sandy list
 ```
 
 Output shows sandbox name, status, and path:
 ```
 Available sandboxes:
 ------------------------------------------------------------
-  1. feature-auth [running] - /Users/aaron/worktrees/my-project-feature-auth
-  2. bugfix-123 [stopped] - /Users/aaron/worktrees/my-project-bugfix-123
+  1. my-project [running] - /Users/aaron/code/my-project
+  2. other-project [stopped] - /Users/aaron/code/other-project
 ------------------------------------------------------------
 ```
 
 ### Remove a sandbox
 
 ```bash
-# Remove container only (keeps worktree)
-sandbox remove feature-auth
-
-# Remove container and worktree
-sandbox remove feature-auth --worktree
+# Interactive selection
+sandy remove
 ```
 
 ## Configuration
 
-Configuration is stored at `~/.config/cli-programs/sandbox.toml`:
+Configuration is stored at `~/.config/cli-programs/sandy.toml`:
 
 ```toml
-# Directory where worktrees are created
-worktree_dir = "~/worktrees"
-
 # Custom Docker template image name (optional)
-template_image = "sandbox-dev"
+template_image = "sandy-dev"
 
 # Directories containing binaries to include in the template image
 # All executable files from these directories are copied into the Docker image
@@ -128,14 +112,13 @@ readonly = true
 
 ```bash
 # Show current configuration
-sandbox config show
+sandy config show
 
 # Set configuration values
-sandbox config set worktree_dir ~/dev/worktrees
-sandbox config set template_image my-custom-template
+sandy config set template_image my-custom-template
 
 # Create Dockerfile for customization
-sandbox config create-dockerfile
+sandy config create-dockerfile
 ```
 
 ## Custom Docker Templates
@@ -145,26 +128,23 @@ The default template is automatically created and built on first use. To customi
 ### Option 1: Pre-configure before first sandbox
 
 ```bash
-# Set custom worktree directory
-sandbox config set worktree_dir /tmp/sandboxes
-
 # Set custom template name
-sandbox config set template_image my-sandbox
+sandy config set template_image my-sandy
 
 # Now create your first sandbox (uses your config)
-sandbox new feature-auth
+sandy new
 ```
 
 ### Option 2: Customize the Dockerfile
 
 ```bash
 # Create a Dockerfile you can edit
-sandbox config create-dockerfile
+sandy config create-dockerfile
 
-# Edit ~/.config/cli-programs/sandbox/Dockerfile
+# Edit ~/.config/cli-programs/sandy/Dockerfile
 
 # Next sandbox will auto-rebuild with your changes
-sandbox new feature-auth
+sandy new
 ```
 
 The CLI automatically rebuilds the template when the Dockerfile changes.
@@ -183,24 +163,17 @@ The default template includes:
 
 ### Authentication
 
-The CLI mounts `~/.claude` into the container, sharing your Claude authentication. Combined with `--credentials=none`, this uses your existing subscription without Docker's credential management.
-
-### Worktree Management
-
-Each sandbox creates a git worktree, providing:
-- Independent working directory
-- Shared git history with main repo
-- Ability to work on multiple features simultaneously
+The CLI mounts `~/.claude` into the container, sharing your Claude authentication. Combined with `--credentials=host`, this uses your existing subscription seamlessly.
 
 ### Container Lifecycle
 
 - Containers are named based on the workspace path hash
 - `resume` auto-starts stopped containers
-- `remove` cleans up containers (worktree removal is optional)
+- `remove` cleans up containers
 
 ## State Files
 
-- `~/.config/cli-programs/sandbox.toml` - Configuration
-- `~/.config/cli-programs/sandbox-state.json` - Worktree tracking
-- `~/.config/cli-programs/sandbox/Dockerfile` - User's custom Dockerfile template
-- `~/.config/cli-programs/sandbox-template.hash` - Template build tracking
+- `~/.config/cli-programs/sandy.toml` - Configuration
+- `~/.config/cli-programs/sandy-state.json` - Sandbox tracking
+- `~/.config/cli-programs/sandy/Dockerfile` - User's custom Dockerfile template
+- `~/.config/cli-programs/sandy-template.hash` - Template build tracking

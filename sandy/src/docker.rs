@@ -24,7 +24,7 @@ fn get_container_name(workspace: &Path) -> String {
     let mut hasher = Sha256::new();
     hasher.update(workspace.to_string_lossy().as_bytes());
     let hash = hex::encode(hasher.finalize());
-    format!("sandbox-{}", &hash[..12])
+    format!("sandy-{}", &hash[..12])
 }
 
 /// Check if Docker is available
@@ -457,9 +457,9 @@ mod tests {
         let path = Path::new("/test/workspace");
         let name = get_container_name(path);
 
-        assert!(name.starts_with("sandbox-"));
+        assert!(name.starts_with("sandy-"));
         // Hash should be 12 characters
-        assert_eq!(name.len(), "sandbox-".len() + 12);
+        assert_eq!(name.len(), "sandy-".len() + 12);
     }
 
     #[test]
@@ -478,9 +478,9 @@ mod tests {
         let path = Path::new("/test/workspace with spaces/and-dashes_underscores");
         let name = get_container_name(path);
 
-        assert!(name.starts_with("sandbox-"));
+        assert!(name.starts_with("sandy-"));
         // Should still produce a valid container name (alphanumeric hash)
-        let hash_part = &name["sandbox-".len()..];
+        let hash_part = &name["sandy-".len()..];
         assert!(hash_part.chars().all(|c| c.is_ascii_hexdigit()));
     }
 

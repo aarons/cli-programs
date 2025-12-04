@@ -20,11 +20,11 @@ use state::State;
 use worktree::{get_repo_name, get_repo_root};
 
 /// Default template image name used when no custom template is configured
-const DEFAULT_TEMPLATE_IMAGE: &str = "sandbox-dev";
+const DEFAULT_TEMPLATE_IMAGE: &str = "sandy-dev";
 
 #[derive(Parser)]
-#[command(name = "sandbox")]
-#[command(about = "Manage Claude Code development environments in Docker sandboxes")]
+#[command(name = "sandy")]
+#[command(about = "Manage Claude Code development environments in Docker containers")]
 #[command(version)]
 struct Cli {
     #[command(subcommand)]
@@ -80,7 +80,7 @@ fn main() -> Result<()> {
 fn cmd_interactive() -> Result<()> {
     use std::io::{self, Write};
 
-    println!("sandbox - Claude Code Development Environments\n");
+    println!("sandy - Claude Code Development Environments\n");
 
     loop {
         println!("What would you like to do?\n");
@@ -144,7 +144,7 @@ fn cmd_new() -> Result<()> {
     // Check if sandbox already exists for this repo
     if state.sandboxes.contains_key(&repo_key) {
         bail!(
-            "Sandbox already exists for '{}'. Use 'sandbox resume' to continue.",
+            "Sandbox already exists for '{}'. Use 'sandy resume' to continue.",
             repo_name
         );
     }
@@ -219,7 +219,7 @@ fn cmd_resume() -> Result<()> {
     // Interactive selection
     let entries = get_sandbox_entries(&state)?;
     if entries.is_empty() {
-        println!("No sandboxes found. Create one with 'sandbox new'");
+        println!("No sandboxes found. Create one with 'sandy new'");
         return Ok(());
     }
 
@@ -317,7 +317,7 @@ fn cmd_config(action: ConfigAction) -> Result<()> {
                 template_path.display()
             );
             println!("\nEdit this file to customize your sandbox environment.");
-            println!("Changes will be automatically built on your next 'sandbox new'.");
+            println!("Changes will be automatically built on your next 'sandy new'.");
         }
     }
 
@@ -326,7 +326,7 @@ fn cmd_config(action: ConfigAction) -> Result<()> {
 
 /// Get the path to the user's template Dockerfile
 fn get_template_dockerfile() -> Result<PathBuf> {
-    Ok(Config::config_dir()?.join("sandbox").join("Dockerfile"))
+    Ok(Config::config_dir()?.join("sandy").join("Dockerfile"))
 }
 
 /// Default Dockerfile template loaded from template/Dockerfile at compile time
