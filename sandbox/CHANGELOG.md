@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.4.3] - 2025-12-04
+
+### Fixed
+- `sandbox new` now automatically detects and updates the Dockerfile when the embedded default template changes after a sandbox update
+- Users no longer need to manually delete their Dockerfile to get template updates
+
+### Added
+- Track embedded default template hash separately from user's Dockerfile hash
+- New `~/.config/cli-programs/sandbox-default-template.hash` file to detect template updates
+
 ## [0.4.2] - 2025-12-04
 
 ### Added

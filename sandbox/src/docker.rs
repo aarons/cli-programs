@@ -6,7 +6,9 @@ use std::path::Path;
 use std::process::{Command, Stdio};
 
 use crate::config::Config;
-use crate::state::{load_template_hash, save_template_hash};
+use crate::state::{
+    load_default_template_hash, load_template_hash, save_default_template_hash, save_template_hash,
+};
 
 /// Status of a sandbox container
 #[derive(Debug, Clone, PartialEq)]
@@ -70,6 +72,11 @@ pub fn hash_dockerfile(dockerfile_path: &Path) -> Result<String> {
     let content = fs::read_to_string(dockerfile_path)
         .with_context(|| format!("Failed to read Dockerfile: {}", dockerfile_path.display()))?;
 
+    hash_content(&content)
+}
+
+/// Calculate hash of content string
+pub fn hash_content(content: &str) -> Result<String> {
     let mut hasher = Sha256::new();
     hasher.update(content.as_bytes());
     Ok(hex::encode(hasher.finalize()))
@@ -83,6 +90,97 @@ pub fn template_needs_rebuild(dockerfile_path: &Path) -> Result<bool> {
         Some(stored_hash) => Ok(current_hash != stored_hash),
         None => Ok(true),
     }
+}
+
+/// Result of checking if the user's Dockerfile needs updating from the embedded default
+pub enum DefaultTemplateStatus {
+    /// User's Dockerfile doesn't exist, should create from default
+    NeedsCreation,
+    /// User's Dockerfile is from an old default and should be updated
+    NeedsUpdate,
+    /// User's Dockerfile is up-to-date with the current default
+    UpToDate,
+    /// User has customized the Dockerfile, don't touch it
+    Customized,
+}
+
+/// Check if user's Dockerfile should be updated from the embedded default template.
+///
+/// Returns the appropriate status:
+/// - NeedsCreation: Dockerfile doesn't exist
+/// - NeedsUpdate: Dockerfile exists, matches old default, embedded default has changed
+/// - UpToDate: Dockerfile matches current embedded default
+/// - Customized: Dockerfile has been modified by user, don't update
+pub fn check_default_template_status(
+    dockerfile_path: &Path,
+    default_template: &str,
+) -> Result<DefaultTemplateStatus> {
+    let current_default_hash = hash_content(default_template)?;
+
+    // If user's Dockerfile doesn't exist, it needs to be created
+    if !dockerfile_path.exists() {
+        return Ok(DefaultTemplateStatus::NeedsCreation);
+    }
+
+    // Get the hash of the user's current Dockerfile
+    let user_dockerfile_hash = hash_dockerfile(dockerfile_path)?;
+
+    // Load the hash of the default template that was used to create the user's Dockerfile
+    let stored_default_hash = load_default_template_hash()?;
+
+    match stored_default_hash {
+        Some(stored_hash) => {
+            // Check if user has customized the Dockerfile
+            // (user's file hash differs from the default that was used to create it)
+            if user_dockerfile_hash != stored_hash {
+                // User has modified their Dockerfile, don't update it
+                return Ok(DefaultTemplateStatus::Customized);
+            }
+
+            // User's Dockerfile matches the old default - check if embedded default changed
+            if stored_hash != current_default_hash {
+                Ok(DefaultTemplateStatus::NeedsUpdate)
+            } else {
+                Ok(DefaultTemplateStatus::UpToDate)
+            }
+        }
+        None => {
+            // No stored default hash - this is a pre-existing installation
+            // Check if user's Dockerfile matches the current default
+            if user_dockerfile_hash == current_default_hash {
+                Ok(DefaultTemplateStatus::UpToDate)
+            } else {
+                // Can't determine if user customized or if it's an old default
+                // Assume customized to be safe
+                Ok(DefaultTemplateStatus::Customized)
+            }
+        }
+    }
+}
+
+/// Update the user's Dockerfile from the embedded default and save the hash
+pub fn update_dockerfile_from_default(
+    dockerfile_path: &Path,
+    default_template: &str,
+) -> Result<()> {
+    let template_dir = dockerfile_path
+        .parent()
+        .context("Invalid dockerfile path")?;
+
+    // Ensure directory exists
+    if !template_dir.exists() {
+        fs::create_dir_all(template_dir)?;
+    }
+
+    // Write the new default template
+    fs::write(dockerfile_path, default_template)
+        .with_context(|| format!("Failed to write Dockerfile: {}", dockerfile_path.display()))?;
+
+    // Save the hash of the default template we used
+    let default_hash = hash_content(default_template)?;
+    save_default_template_hash(&default_hash)?;
+
+    Ok(())
 }
 
 /// Prepare template assets by copying binaries from configured directories
@@ -580,6 +678,119 @@ mod tests {
         let result = prepare_template_assets(&dockerfile_dir, &config);
         // Should succeed but skip the file
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_hash_content() {
+        let content = "FROM ubuntu:latest\nRUN apt-get update";
+        let hash = hash_content(content).unwrap();
+
+        // SHA256 produces 64 hex characters
+        assert_eq!(hash.len(), 64);
+        assert!(hash.chars().all(|c| c.is_ascii_hexdigit()));
+    }
+
+    #[test]
+    fn test_hash_content_deterministic() {
+        let content = "FROM ubuntu:latest";
+        let hash1 = hash_content(content).unwrap();
+        let hash2 = hash_content(content).unwrap();
+
+        assert_eq!(hash1, hash2);
+    }
+
+    #[test]
+    fn test_hash_content_different_inputs() {
+        let hash1 = hash_content("FROM ubuntu:latest").unwrap();
+        let hash2 = hash_content("FROM debian:latest").unwrap();
+
+        assert_ne!(hash1, hash2);
+    }
+
+    #[test]
+    fn test_hash_content_matches_file_hash() {
+        let temp_dir = TempDir::new().unwrap();
+        let dockerfile_path = temp_dir.path().join("Dockerfile");
+        let content = "FROM ubuntu:latest\nRUN apt-get update";
+
+        fs::write(&dockerfile_path, content).unwrap();
+
+        let file_hash = hash_dockerfile(&dockerfile_path).unwrap();
+        let content_hash = hash_content(content).unwrap();
+
+        assert_eq!(file_hash, content_hash);
+    }
+
+    #[test]
+    fn test_check_default_template_status_needs_creation() {
+        let temp_dir = TempDir::new().unwrap();
+        let dockerfile_path = temp_dir.path().join("nonexistent").join("Dockerfile");
+        let default_template = "FROM ubuntu:latest";
+
+        let status = check_default_template_status(&dockerfile_path, default_template).unwrap();
+
+        assert!(matches!(status, DefaultTemplateStatus::NeedsCreation));
+    }
+
+    #[test]
+    fn test_check_default_template_status_up_to_date_matches_current() {
+        let temp_dir = TempDir::new().unwrap();
+        let dockerfile_path = temp_dir.path().join("Dockerfile");
+        let default_template = "FROM ubuntu:latest";
+
+        // Write the same content as the default
+        fs::write(&dockerfile_path, default_template).unwrap();
+
+        // When there's no stored hash but the file matches current default, it's up-to-date
+        let status = check_default_template_status(&dockerfile_path, default_template).unwrap();
+
+        assert!(matches!(status, DefaultTemplateStatus::UpToDate));
+    }
+
+    #[test]
+    fn test_check_default_template_status_customized_no_stored_hash() {
+        let temp_dir = TempDir::new().unwrap();
+        let dockerfile_path = temp_dir.path().join("Dockerfile");
+        let default_template = "FROM ubuntu:latest";
+
+        // Write different content than the default
+        fs::write(&dockerfile_path, "FROM debian:latest\nRUN custom stuff").unwrap();
+
+        // When there's no stored hash and file differs from default, assume customized
+        let status = check_default_template_status(&dockerfile_path, default_template).unwrap();
+
+        assert!(matches!(status, DefaultTemplateStatus::Customized));
+    }
+
+    #[test]
+    fn test_update_dockerfile_from_default() {
+        let temp_dir = TempDir::new().unwrap();
+        let dockerfile_path = temp_dir.path().join("sandbox").join("Dockerfile");
+        let default_template = "FROM ubuntu:latest\nRUN apt-get update";
+
+        // Update should create the file and parent directory
+        update_dockerfile_from_default(&dockerfile_path, default_template).unwrap();
+
+        assert!(dockerfile_path.exists());
+        let content = fs::read_to_string(&dockerfile_path).unwrap();
+        assert_eq!(content, default_template);
+    }
+
+    #[test]
+    fn test_update_dockerfile_from_default_overwrites() {
+        let temp_dir = TempDir::new().unwrap();
+        let dockerfile_path = temp_dir.path().join("Dockerfile");
+        let old_content = "FROM debian:latest";
+        let new_default = "FROM ubuntu:latest";
+
+        // Create existing file with different content
+        fs::write(&dockerfile_path, old_content).unwrap();
+
+        // Update should overwrite
+        update_dockerfile_from_default(&dockerfile_path, new_default).unwrap();
+
+        let content = fs::read_to_string(&dockerfile_path).unwrap();
+        assert_eq!(content, new_default);
     }
 }
 

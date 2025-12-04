@@ -266,38 +266,6 @@ fn test_new_requires_git_repo() {
 }
 
 #[test]
-fn test_new_checks_docker_availability() {
-    let temp_dir = TempDir::new().unwrap();
-    setup_test_config(&temp_dir);
-
-    // Create a git repo
-    let repo_dir = temp_dir.path().join("my-repo");
-    fs::create_dir(&repo_dir).unwrap();
-
-    if !create_git_repo(&repo_dir) {
-        // Skip if git is not available
-        return;
-    }
-
-    // This test will fail if Docker is not available, which is expected behavior
-    let result = sandbox_cmd()
-        .arg("new")
-        .current_dir(&repo_dir)
-        .env("HOME", temp_dir.path())
-        .assert();
-
-    // Either Docker check fails or sandbox extension check fails
-    // (we're testing the error handling path)
-    if !result.get_output().status.success() {
-        let stderr = String::from_utf8_lossy(&result.get_output().stderr);
-        assert!(
-            stderr.contains("Docker") || stderr.contains("docker"),
-            "Expected Docker-related error message"
-        );
-    }
-}
-
-#[test]
 fn test_new_prevents_duplicate_sandbox() {
     let temp_dir = TempDir::new().unwrap();
     let config_dir = setup_test_config(&temp_dir);

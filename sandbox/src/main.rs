@@ -11,8 +11,9 @@ use std::path::PathBuf;
 
 use config::Config;
 use docker::{
-    build_template, check_docker, check_docker_sandbox, remove_sandbox, start_sandbox,
-    template_exists, template_needs_rebuild,
+    build_template, check_default_template_status, check_docker, check_docker_sandbox,
+    remove_sandbox, start_sandbox, template_exists, template_needs_rebuild,
+    update_dockerfile_from_default, DefaultTemplateStatus,
 };
 use interactive::{confirm, display_sandbox_list, get_sandbox_entries, prompt_selection};
 use state::State;
@@ -148,36 +149,47 @@ fn cmd_new() -> Result<()> {
         );
     }
 
-    // Handle template - auto-create and build if needed
+    // Handle template - auto-create, update, and build as needed
     let template_name = config
         .template_image
         .clone()
         .unwrap_or_else(|| DEFAULT_TEMPLATE_IMAGE.to_string());
     let template_dockerfile = get_template_dockerfile()?;
 
-    // Check if we need to create and/or build the template
-    let dockerfile_exists = template_dockerfile.exists();
+    // Check if we need to update the Dockerfile from the embedded default
+    let template_status = check_default_template_status(&template_dockerfile, DEFAULT_DOCKERFILE)?;
     let image_exists = template_exists(&template_name)?;
 
-    if !dockerfile_exists && !image_exists {
-        // First-time setup: create default Dockerfile and build
-        println!("Setting up sandbox template (first-time setup)...");
-        let template_dir = template_dockerfile
-            .parent()
-            .context("Invalid template path")?;
-        std::fs::create_dir_all(template_dir)?;
-        std::fs::write(&template_dockerfile, DEFAULT_DOCKERFILE)?;
-        println!("Created default Dockerfile at: {}", template_dockerfile.display());
-        build_template(&template_dockerfile, &template_name, &config)?;
-    } else if dockerfile_exists {
-        // Dockerfile exists - check if rebuild needed
-        let needs_build = !image_exists || template_needs_rebuild(&template_dockerfile)?;
-        if needs_build {
-            println!("Building sandbox template...");
+    match template_status {
+        DefaultTemplateStatus::NeedsCreation => {
+            // First-time setup: create default Dockerfile and build
+            println!("Setting up sandbox template (first-time setup)...");
+            update_dockerfile_from_default(&template_dockerfile, DEFAULT_DOCKERFILE)?;
+            println!(
+                "Created default Dockerfile at: {}",
+                template_dockerfile.display()
+            );
             build_template(&template_dockerfile, &template_name, &config)?;
         }
+        DefaultTemplateStatus::NeedsUpdate => {
+            // Embedded default has changed - update user's Dockerfile and rebuild
+            println!("Updating sandbox template to latest version...");
+            update_dockerfile_from_default(&template_dockerfile, DEFAULT_DOCKERFILE)?;
+            println!(
+                "Updated Dockerfile at: {}",
+                template_dockerfile.display()
+            );
+            build_template(&template_dockerfile, &template_name, &config)?;
+        }
+        DefaultTemplateStatus::UpToDate | DefaultTemplateStatus::Customized => {
+            // Dockerfile is current or customized - only rebuild if needed
+            let needs_build = !image_exists || template_needs_rebuild(&template_dockerfile)?;
+            if needs_build {
+                println!("Building sandbox template...");
+                build_template(&template_dockerfile, &template_name, &config)?;
+            }
+        }
     }
-    // If only image exists (no dockerfile), use it as-is
 
     // Update config with template_image if not already set
     if config.template_image.is_none() {
