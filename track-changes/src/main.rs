@@ -27,17 +27,21 @@ struct Cli {
 #[derive(Subcommand, Debug)]
 enum Commands {
     /// Add a directory to the watch list and trigger initial commit
+    #[command(after_help = "Tip: Use \".\" for the current directory")]
     Add {
-        /// Directory path to add
+        /// Directory path to add (use "." for current directory)
         directory: PathBuf,
     },
     /// Remove a directory from the watch list
+    #[command(after_help = "Tip: Use \".\" for the current directory")]
     Remove {
-        /// Directory path to remove
+        /// Directory path to remove (use "." for current directory)
         directory: PathBuf,
     },
     /// List all watched directories with status
     List,
+    /// Commit changes in all watched directories now
+    Now,
     /// Install launchd plist for hourly runs
     Install,
     /// Remove launchd plist
@@ -59,9 +63,10 @@ fn main() -> Result<()> {
             cmd_add_directory(dir)?;
             run_commit_for_directory(dir)?;
         }
-        // No args: Run commit on all watched directories
+        // No args: Show help
         (None, None) => {
-            cmd_run_all()?;
+            use clap::CommandFactory;
+            Cli::command().print_help()?;
         }
         // Subcommands
         (None, Some(Commands::Add { directory })) => {
@@ -73,6 +78,7 @@ fn main() -> Result<()> {
         }
         (None, Some(Commands::Remove { directory })) => cmd_remove_directory(directory)?,
         (None, Some(Commands::List)) => cmd_list()?,
+        (None, Some(Commands::Now)) => cmd_run_all()?,
         (None, Some(Commands::Install)) => launchd::install()?,
         (None, Some(Commands::Uninstall)) => launchd::uninstall()?,
         (None, Some(Commands::Log { count })) => cmd_show_log(*count)?,

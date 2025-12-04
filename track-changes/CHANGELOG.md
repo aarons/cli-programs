@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.0] - 2025-12-04
+
+### Added
+- `now` subcommand to commit changes in all watched directories on demand
+
+### Changed
+- Running `track-changes` with no arguments now shows help instead of auto-committing
+
 ## [0.1.1] - 2025-12-04
 
 ### Changed
