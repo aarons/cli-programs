@@ -23,5 +23,12 @@ RUN sudo apt-get update && sudo apt-get install -y \
 # Additional Rust tools
 RUN cargo install cargo-watch cargo-expand
 
+# Java and Maven
+RUN sudo apt-get update && sudo apt-get install -y \
+    openjdk-17-jdk \
+    maven \
+    && sudo rm -rf /var/lib/apt/lists/*
+ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+
 # CLI binaries from configured binary_dirs (e.g., ~/.local/bin)
 COPY assets/bin/ /usr/local/bin/

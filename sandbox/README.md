@@ -176,6 +176,7 @@ The default template includes:
 - Node.js with pnpm
 - Tauri development dependencies
 - cargo-watch and cargo-expand
+- Java 17 (OpenJDK) with Maven
 - All executables from configured `binary_dirs` (default: `~/.local/bin`)
 
 ## How It Works
