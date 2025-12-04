@@ -79,9 +79,14 @@ impl State {
     }
 }
 
-/// Get the template hash file path
+/// Get the template hash file path (tracks user's Dockerfile hash after build)
 pub fn template_hash_path() -> Result<PathBuf> {
     Ok(Config::config_dir()?.join("sandbox-template.hash"))
+}
+
+/// Get the default template hash file path (tracks which embedded default was used)
+pub fn default_template_hash_path() -> Result<PathBuf> {
+    Ok(Config::config_dir()?.join("sandbox-default-template.hash"))
 }
 
 /// Load the stored template hash
@@ -108,6 +113,34 @@ pub fn save_template_hash(hash: &str) -> Result<()> {
 
     fs::write(&path, hash)
         .with_context(|| format!("Failed to write template hash: {}", path.display()))?;
+
+    Ok(())
+}
+
+/// Load the stored default template hash (tracks which embedded default was used)
+pub fn load_default_template_hash() -> Result<Option<String>> {
+    let path = default_template_hash_path()?;
+    if path.exists() {
+        let hash = fs::read_to_string(&path)
+            .with_context(|| format!("Failed to read default template hash: {}", path.display()))?;
+        Ok(Some(hash.trim().to_string()))
+    } else {
+        Ok(None)
+    }
+}
+
+/// Save the default template hash
+pub fn save_default_template_hash(hash: &str) -> Result<()> {
+    let path = default_template_hash_path()?;
+    let dir = path.parent().unwrap();
+
+    if !dir.exists() {
+        fs::create_dir_all(dir)
+            .with_context(|| format!("Failed to create directory: {}", dir.display()))?;
+    }
+
+    fs::write(&path, hash)
+        .with_context(|| format!("Failed to write default template hash: {}", path.display()))?;
 
     Ok(())
 }

@@ -97,7 +97,15 @@ fn main() -> Result<()> {
 
         let target_path = target_dir.join(program);
 
-        // Copy binary
+        // Remove old binary first to invalidate macOS code signature cache.
+        // If we overwrite in-place, macOS may cache the old signature and kill
+        // the new binary with "zsh: killed" until reboot.
+        if target_path.exists() {
+            fs::remove_file(&target_path)
+                .with_context(|| format!("Failed to remove old {}", target_path.display()))?;
+        }
+
+        // Copy new binary
         fs::copy(&binary_path, &target_path)
             .with_context(|| format!("Failed to copy {} to {}", program, target_path.display()))?;
 
