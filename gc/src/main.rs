@@ -1,11 +1,13 @@
 // gc - Git commit with AI-generated conventional commit messages
 
+mod config;
 mod llm;
 mod prompts;
 
 use addr::parse_domain_name;
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
+use config::GcConfig;
 use email_address::EmailAddress;
 use git_conventional::Commit;
 use git2::Repository;
@@ -260,6 +262,31 @@ fn get_repo_filenames() -> Result<HashSet<String>> {
     Ok(filenames)
 }
 
+/// Estimate token count using a simple heuristic (~4 chars per token)
+fn estimate_tokens(text: &str) -> usize {
+    text.len() / 4
+}
+
+/// Prompt user for context when commit is too large
+fn prompt_for_large_commit_context(file_count: usize, estimated_tokens: usize) -> Result<String> {
+    use std::io::{self, BufRead, Write};
+
+    eprintln!(
+        "Large commit detected ({} files, ~{} estimated tokens)",
+        file_count, estimated_tokens
+    );
+    eprintln!("The diff is too large to send to the LLM directly.");
+    eprintln!("Please provide a brief description of these changes:");
+    eprint!("> ");
+    io::stderr().flush()?;
+
+    let stdin = io::stdin();
+    let mut line = String::new();
+    stdin.lock().read_line(&mut line)?;
+
+    Ok(line.trim().to_string())
+}
+
 // LLM interaction functions
 const MAX_RETRIES: usize = 3;
 
@@ -510,6 +537,9 @@ async fn main() -> Result<()> {
         );
     }
 
+    // Load gc-specific config
+    let gc_config = GcConfig::load().context("Failed to load gc config")?;
+
     // Initialize LLM client with selected preset
     let llm = LlmClient::new(args.model.as_deref(), args.debug)?;
 
@@ -562,7 +592,34 @@ async fn main() -> Result<()> {
     let branch_commits = get_branch_commits(&current_branch, &main_branch)
         .context("Failed to get branch commits")?;
 
-    // Build context string (matches gc.sh lines 540-551)
+    // Check if diff is too large
+    let estimated_tokens = estimate_tokens(&git_diff);
+    let file_count = git_name_status.lines().count();
+    let use_summary_mode = estimated_tokens > gc_config.max_diff_tokens;
+
+    if args.debug {
+        eprintln!(
+            "Diff size: {} chars, ~{} tokens (limit: {})",
+            git_diff.len(),
+            estimated_tokens,
+            gc_config.max_diff_tokens
+        );
+    }
+
+    // Determine if user already provided context
+    let user_has_context = !args.message.is_empty() || args.context.is_some();
+
+    // For large commits without user context, prompt for it
+    let large_commit_context = if use_summary_mode && !user_has_context {
+        Some(prompt_for_large_commit_context(
+            file_count,
+            estimated_tokens,
+        )?)
+    } else {
+        None
+    };
+
+    // Build context string
     let mut context = String::new();
 
     if !args.message.is_empty() {
@@ -580,20 +637,43 @@ async fn main() -> Result<()> {
         ));
     }
 
+    if let Some(ref large_context) = large_commit_context {
+        context.push_str(&format!(
+            "The user provided this description of the large commit:\n{}\n\n---\n\n",
+            large_context
+        ));
+    }
+
     context.push_str(&format!(
         "Current branch: {}\n\nCommits in {} since branching from {}:\n{}\n\n",
         current_branch, current_branch, main_branch, branch_commits
     ));
 
-    context.push_str(&format!(
-        "Changed files:\n{}\n\nStaged changes:\n{}",
-        git_name_status, git_diff
-    ));
+    if use_summary_mode {
+        // Summary mode: only include file list, not full diff
+        context.push_str(&format!(
+            "Changed files ({} files, diff too large to include):\n{}",
+            file_count, git_name_status
+        ));
+        if args.debug {
+            eprintln!("Using summary mode (diff too large)");
+        }
+    } else {
+        // Normal mode: include full diff
+        context.push_str(&format!(
+            "Changed files:\n{}\n\nStaged changes:\n{}",
+            git_name_status, git_diff
+        ));
+    }
 
     println!("Generating commit message with {}", llm.provider_name());
 
-    // Generate commit message
-    let prompt = prompts::generate_commit_prompt(&context);
+    // Generate commit message using appropriate prompt
+    let prompt = if use_summary_mode {
+        prompts::generate_commit_prompt_summary_mode(&context)
+    } else {
+        prompts::generate_commit_prompt(&context)
+    };
 
     let mut llm_response =
         generate_commit_message(&llm, &prompt, &prompts::SYSTEM_PROMPT, args.debug)

@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.2.0] - 2025-12-04
+
+### Added
+- Large commit handling: when diffs exceed a configurable token limit, gc now prompts for a description and uses file list + context instead of full diff
+- Configurable token limit via `~/.config/cli-programs/gc.toml` (default: 30,000 tokens)
+
 ## [1.1.0] - 2025-11-28
 
 ### Added

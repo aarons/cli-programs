@@ -522,7 +522,7 @@ dependencies = [
 
 [[package]]
 name = "gc"
-version = "1.1.0"
+version = "1.2.0"
 dependencies = [
  "addr",
  "anyhow",
@@ -534,8 +534,10 @@ dependencies = [
  "git2",
  "llm-client",
  "predicates",
+ "serde",
  "tempfile",
  "tokio",
+ "toml",
  "unicode-segmentation",
  "url",
 ]
