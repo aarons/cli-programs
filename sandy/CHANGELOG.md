@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.2.0] - 2025-12-04
+
+### Changed
+- Container names now include the directory name for easier identification (e.g., `sandy-cli-programs-e1664b` instead of `sandy-e1664bd8231b`)
+
 ## [1.1.0] - 2025-12-04
 
 ### Added
