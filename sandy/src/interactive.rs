@@ -1,7 +1,7 @@
 use anyhow::Result;
 use std::io::{self, Write};
 
-use crate::docker::{sandbox_status, SandboxStatus};
+use crate::docker::{SandboxStatus, sandbox_status};
 use crate::state::{SandboxInfo, State};
 use crate::worktree::get_repo_name;
 

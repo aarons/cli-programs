@@ -1,5 +1,5 @@
-use assert_cmd::cargo::cargo_bin_cmd;
 use assert_cmd::Command;
+use assert_cmd::cargo::cargo_bin_cmd;
 use predicates::prelude::*;
 use std::fs;
 use std::path::PathBuf;
@@ -36,7 +36,9 @@ fn test_help_displays_usage() {
         .assert()
         .success()
         .stdout(predicate::str::contains("sandy"))
-        .stdout(predicate::str::contains("Claude Code development environments"));
+        .stdout(predicate::str::contains(
+            "Claude Code development environments",
+        ));
 }
 
 #[test]
@@ -262,7 +264,10 @@ fn test_new_requires_git_repo() {
         .env("HOME", temp_dir.path())
         .assert()
         .failure()
-        .stderr(predicate::str::contains("not in a git repository").or(predicate::str::contains("Not a git repository")));
+        .stderr(
+            predicate::str::contains("not in a git repository")
+                .or(predicate::str::contains("Not a git repository")),
+        );
 }
 
 #[test]

@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.1.0] - 2025-12-04
+
+### Added
+- `SANDY_CONFIG_DIR` environment variable to override the config directory path
+
+### Changed
+- Improved test isolation by separating I/O from business logic in template status checking
+
 ## [1.0.0] - 2025-12-04
 
 ### Changed
