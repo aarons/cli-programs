@@ -2,10 +2,12 @@
 
 mod anthropic;
 mod claude_cli;
+pub mod mock;
 mod openai_compatible;
 
 pub use anthropic::AnthropicProvider;
 pub use claude_cli::ClaudeCliProvider;
+pub use mock::MockProvider;
 pub use openai_compatible::OpenAICompatibleProvider;
 
 use crate::config::{ModelPreset, ProviderConfig};

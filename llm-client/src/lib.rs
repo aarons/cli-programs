@@ -14,4 +14,4 @@ pub mod providers;
 pub use config::{Config, ModelPreset, ProviderConfig};
 pub use error::{LlmError, Result};
 pub use provider::{LlmProvider, LlmRequest, LlmResponse, TokenUsage};
-pub use providers::{ProviderKind, get_provider};
+pub use providers::{MockProvider, ProviderKind, get_provider};
