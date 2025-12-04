@@ -1,8 +1,8 @@
 [package]
-name = "sandbox"
-version = "0.4.3"
+name = "sandy"
+version = "0.5.0"
 edition = "2024"
-description = "Claude Code development environments using Docker sandboxes"
+description = "Claude Code development environments using Docker containers"
 
 [dependencies]
 clap = { workspace = true }

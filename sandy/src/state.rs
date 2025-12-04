@@ -26,7 +26,7 @@ pub struct State {
 impl State {
     /// Get the state file path
     pub fn state_path() -> Result<PathBuf> {
-        Ok(Config::config_dir()?.join("sandbox-state.json"))
+        Ok(Config::config_dir()?.join("sandy-state.json"))
     }
 
     /// Load state from file
@@ -81,12 +81,12 @@ impl State {
 
 /// Get the template hash file path (tracks user's Dockerfile hash after build)
 pub fn template_hash_path() -> Result<PathBuf> {
-    Ok(Config::config_dir()?.join("sandbox-template.hash"))
+    Ok(Config::config_dir()?.join("sandy-template.hash"))
 }
 
 /// Get the default template hash file path (tracks which embedded default was used)
 pub fn default_template_hash_path() -> Result<PathBuf> {
-    Ok(Config::config_dir()?.join("sandbox-default-template.hash"))
+    Ok(Config::config_dir()?.join("sandy-default-template.hash"))
 }
 
 /// Load the stored template hash
