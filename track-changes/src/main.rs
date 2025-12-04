@@ -26,7 +26,7 @@ struct Cli {
 
 #[derive(Subcommand, Debug)]
 enum Commands {
-    /// Add a directory to the watch list (without committing)
+    /// Add a directory to the watch list and trigger initial commit
     Add {
         /// Directory path to add
         directory: PathBuf,
@@ -64,7 +64,13 @@ fn main() -> Result<()> {
             cmd_run_all()?;
         }
         // Subcommands
-        (None, Some(Commands::Add { directory })) => cmd_add_directory(directory)?,
+        (None, Some(Commands::Add { directory })) => {
+            let newly_added = cmd_add_directory(directory)?;
+            if newly_added {
+                // Trigger initial commit for newly added directories
+                run_commit_for_directory(directory)?;
+            }
+        }
         (None, Some(Commands::Remove { directory })) => cmd_remove_directory(directory)?,
         (None, Some(Commands::List)) => cmd_list()?,
         (None, Some(Commands::Install)) => launchd::install()?,
@@ -80,7 +86,8 @@ fn main() -> Result<()> {
 }
 
 /// Add a directory to the watch list
-fn cmd_add_directory(path: &PathBuf) -> Result<()> {
+/// Returns Ok(true) if the directory was newly added, Ok(false) if already watching
+fn cmd_add_directory(path: &PathBuf) -> Result<bool> {
     // Validate it's a git repo
     if !git::is_git_repo(path) {
         anyhow::bail!(
@@ -99,7 +106,7 @@ fn cmd_add_directory(path: &PathBuf) -> Result<()> {
         println!("Already watching: {}", path.canonicalize()?.display());
     }
 
-    Ok(())
+    Ok(added)
 }
 
 /// Remove a directory from the watch list

@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.1] - 2025-12-04
+
+### Changed
+- `add` subcommand now triggers an initial commit when a directory is first added
+
 ## [0.1.0] - 2025-12-04
 
 ### Added
