@@ -4,16 +4,16 @@ mod interactive;
 mod state;
 mod worktree;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use clap::{Parser, Subcommand};
 use std::env;
 use std::path::PathBuf;
 
 use config::Config;
 use docker::{
-    build_template, check_default_template_status, check_docker, check_docker_sandbox,
-    remove_sandbox, start_sandbox, template_exists, template_needs_rebuild,
-    update_dockerfile_from_default, DefaultTemplateStatus,
+    DefaultTemplateStatus, build_template, check_default_template_status, check_docker,
+    check_docker_sandbox, remove_sandbox, start_sandbox, template_exists, template_needs_rebuild,
+    update_dockerfile_from_default,
 };
 use interactive::{confirm, display_sandbox_list, get_sandbox_entries, prompt_selection};
 use state::State;
@@ -175,10 +175,7 @@ fn cmd_new() -> Result<()> {
             // Embedded default has changed - update user's Dockerfile and rebuild
             println!("Updating sandbox template to latest version...");
             update_dockerfile_from_default(&template_dockerfile, DEFAULT_DOCKERFILE)?;
-            println!(
-                "Updated Dockerfile at: {}",
-                template_dockerfile.display()
-            );
+            println!("Updated Dockerfile at: {}", template_dockerfile.display());
             build_template(&template_dockerfile, &template_name, &config)?;
         }
         DefaultTemplateStatus::UpToDate | DefaultTemplateStatus::Customized => {
@@ -216,7 +213,20 @@ fn cmd_resume() -> Result<()> {
     let config = Config::load()?;
     let state = State::load()?;
 
-    // Interactive selection
+    // Try to auto-select sandbox for current working directory
+    if let Ok(cwd) = env::current_dir() {
+        if let Ok(repo_path) = get_repo_root(&cwd) {
+            let repo_key = repo_path.to_string_lossy().to_string();
+            if let Some(info) = state.sandboxes.get(&repo_key) {
+                let repo_name = get_repo_name(&info.path);
+                println!("Resuming sandbox '{}'...", repo_name);
+                start_sandbox(&info.path, &config)?;
+                return Ok(());
+            }
+        }
+    }
+
+    // Fall back to interactive selection
     let entries = get_sandbox_entries(&state)?;
     if entries.is_empty() {
         println!("No sandboxes found. Create one with 'sandy new'");
@@ -290,7 +300,10 @@ fn cmd_config(action: ConfigAction) -> Result<()> {
 
             match key.as_str() {
                 "template_image" => config.template_image = Some(value),
-                _ => bail!("Unknown configuration key: {}. Valid keys: template_image", key),
+                _ => bail!(
+                    "Unknown configuration key: {}. Valid keys: template_image",
+                    key
+                ),
             }
 
             config.save()?;
