@@ -233,6 +233,32 @@ fn push() -> Result<()> {
     Ok(())
 }
 
+/// Extract filenames from deleted and renamed files in git name-status output.
+/// This parses output from `git diff --staged --name-status` to find:
+/// - Deleted files (status "D")
+/// - Old names from renamed files (status "R###" where ### is similarity %)
+fn extract_deleted_and_renamed_filenames(name_status: &str) -> HashSet<String> {
+    name_status
+        .lines()
+        .filter_map(|line| {
+            let parts: Vec<&str> = line.split('\t').collect();
+            let status = parts.first()?;
+
+            // Deleted files: "D\tpath/to/file"
+            // Renamed files: "R100\told-path\tnew-path" (extract old path)
+            let is_deleted_or_renamed = *status == "D" || status.starts_with('R');
+            if !is_deleted_or_renamed || parts.len() < 2 {
+                return None;
+            }
+
+            Path::new(parts[1])
+                .file_name()
+                .and_then(|f| f.to_str())
+                .map(|s| s.to_string())
+        })
+        .collect()
+}
+
 fn get_repo_filenames() -> Result<HashSet<String>> {
     let repo_root = git(&["rev-parse", "--show-toplevel"])?.trim().to_string();
 
@@ -249,7 +275,7 @@ fn get_repo_filenames() -> Result<HashSet<String>> {
     let mut all_files = String::from_utf8_lossy(&tracked.stdout).into_owned();
     all_files.push_str(&String::from_utf8_lossy(&untracked.stdout));
 
-    let filenames = all_files
+    let mut filenames: HashSet<String> = all_files
         .lines()
         .filter_map(|line| {
             Path::new(line.trim())
@@ -258,6 +284,13 @@ fn get_repo_filenames() -> Result<HashSet<String>> {
                 .map(|s| s.to_string())
         })
         .collect();
+
+    // Also include deleted files and old names from renames in staged changes.
+    // This prevents false URL detection when commit messages reference files
+    // that were deleted or renamed.
+    if let Ok(name_status) = get_name_status() {
+        filenames.extend(extract_deleted_and_renamed_filenames(&name_status));
+    }
 
     Ok(filenames)
 }
@@ -1112,5 +1145,69 @@ feat: add user authentication
             !violations.contains(&"Contains URL".to_string()),
             "Filename with trailing period should not be flagged"
         );
+    }
+
+    #[test]
+    fn test_extract_deleted_filenames() {
+        // Test deleted file extraction
+        let name_status = "D\tsrc/old-config.rs\nM\tsrc/main.rs";
+        let filenames = extract_deleted_and_renamed_filenames(name_status);
+        assert!(
+            filenames.contains("old-config.rs"),
+            "Should extract deleted filename"
+        );
+        assert!(
+            !filenames.contains("main.rs"),
+            "Should not extract modified files"
+        );
+    }
+
+    #[test]
+    fn test_extract_renamed_filenames() {
+        // Test renamed file extraction (old name should be included)
+        let name_status = "R100\tsrc/old-name.rs\tsrc/new-name.rs";
+        let filenames = extract_deleted_and_renamed_filenames(name_status);
+        assert!(
+            filenames.contains("old-name.rs"),
+            "Should extract old name from rename"
+        );
+        assert!(
+            !filenames.contains("new-name.rs"),
+            "Should not extract new name (it's already in repo)"
+        );
+    }
+
+    #[test]
+    fn test_extract_mixed_status() {
+        // Test mixed status output
+        let name_status = "A\tsrc/new-file.rs\nD\tsrc/deleted.io\nR095\tsrc/old.rs\tsrc/renamed.rs\nM\tsrc/modified.rs";
+        let filenames = extract_deleted_and_renamed_filenames(name_status);
+
+        assert!(
+            filenames.contains("deleted.io"),
+            "Should extract deleted file"
+        );
+        assert!(
+            filenames.contains("old.rs"),
+            "Should extract old name from partial rename"
+        );
+        assert!(
+            !filenames.contains("new-file.rs"),
+            "Should not extract added files"
+        );
+        assert!(
+            !filenames.contains("modified.rs"),
+            "Should not extract modified files"
+        );
+        assert!(
+            !filenames.contains("renamed.rs"),
+            "Should not extract new name from rename"
+        );
+    }
+
+    #[test]
+    fn test_extract_empty_status() {
+        let filenames = extract_deleted_and_renamed_filenames("");
+        assert!(filenames.is_empty(), "Empty input should return empty set");
     }
 }

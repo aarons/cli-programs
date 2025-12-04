@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.2.1] - 2025-12-04
+
+### Fixed
+- URL validation no longer flags deleted or renamed filenames as URLs in commit messages
+
 ## [1.2.0] - 2025-12-04
 
 ### Added

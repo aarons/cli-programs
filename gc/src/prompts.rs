@@ -173,6 +173,8 @@ pub fn fix_message_content(message: &str) -> String {
 - Codefences or literal code
 - Any other metadata that shouldn't be in a commit message
 
+Note that sometimes filenames get flagged as URLs, it's acceptable to remove references to specific filenames, instead using more generic language.
+
 Keep the core commit message intact and maintain proper conventional commit formatting.
 IMPORTANT: Return only the cleaned commit message. Do not add formatting (such as code fences) or other explanations.
 
