@@ -142,9 +142,7 @@ fn handle_config_command(action: &ConfigAction) -> Result<()> {
 /// Get shell name and RC file path
 fn get_shell_info() -> Option<(&'static str, PathBuf)> {
     let shell = std::env::var("SHELL").ok()?;
-    let shell_name = std::path::Path::new(&shell)
-        .file_name()?
-        .to_str()?;
+    let shell_name = std::path::Path::new(&shell).file_name()?.to_str()?;
     let home = std::env::var("HOME").ok()?;
 
     match shell_name {
@@ -165,9 +163,8 @@ fn check_shell_integration() -> Result<Option<(&'static str, PathBuf, bool)>> {
     }
 
     let content = std::fs::read_to_string(&rc_file)?;
-    let has_integration = content.contains("alias ask=")
-        || content.contains("ask()")
-        || content.contains("ask ()");
+    let has_integration =
+        content.contains("alias ask=") || content.contains("ask()") || content.contains("ask ()");
 
     Ok(Some((shell_name, rc_file, has_integration)))
 }
@@ -176,13 +173,15 @@ fn check_shell_integration() -> Result<Option<(&'static str, PathBuf, bool)>> {
 fn get_shell_integration_code(shell_name: &str) -> &'static str {
     match shell_name {
         "zsh" => "alias ask='noglob command ask'",
-        "bash" => r#"ask() {
+        "bash" => {
+            r#"ask() {
   set -f
   command ask "$@"
   local ret=$?
   set +f
   return $ret
-}"#,
+}"#
+        }
         _ => unreachable!(),
     }
 }
@@ -196,10 +195,7 @@ fn do_install(shell_name: &str, rc_file: &PathBuf) -> Result<()> {
     );
 
     use std::fs::OpenOptions;
-    let mut file = OpenOptions::new()
-        .append(true)
-        .create(true)
-        .open(rc_file)?;
+    let mut file = OpenOptions::new().append(true).create(true).open(rc_file)?;
     file.write_all(full_block.as_bytes())?;
 
     println!("\nInstalled! Run this to activate:");

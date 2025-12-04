@@ -7,8 +7,8 @@ use addr::parse_domain_name;
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use email_address::EmailAddress;
-use git2::Repository;
 use git_conventional::Commit;
+use git2::Repository;
 use llm::LlmClient;
 use llm_client::{Config, ModelPreset};
 use std::collections::HashSet;
@@ -121,14 +121,12 @@ fn git(args: &[&str]) -> Result<String> {
         anyhow::bail!("git command failed: {}", stderr);
     }
 
-    String::from_utf8(output.stdout)
-        .context("Git output was not valid UTF-8")
+    String::from_utf8(output.stdout).context("Git output was not valid UTF-8")
 }
 
 fn is_git_repo() -> bool {
     Repository::open(".").is_ok()
 }
-
 
 /// Get staged diff with specific formatting flags (matches gc.sh behavior)
 fn get_staged_diff() -> Result<String> {
@@ -149,9 +147,7 @@ fn get_staged_diff() -> Result<String> {
     let filtered: Vec<&str> = diff
         .lines()
         .filter(|line| {
-            !line.starts_with("index ") &&
-            !line.starts_with("--- ") &&
-            !line.starts_with("+++ ")
+            !line.starts_with("index ") && !line.starts_with("--- ") && !line.starts_with("+++ ")
         })
         .collect();
 
@@ -173,8 +169,7 @@ fn get_current_branch() -> Result<String> {
         Ok(branch) => Ok(branch.trim().to_string()),
         Err(_) => {
             // Fallback for detached HEAD state or other issues
-            git(&["rev-parse", "--abbrev-ref", "HEAD"])
-                .map(|s| s.trim().to_string())
+            git(&["rev-parse", "--abbrev-ref", "HEAD"]).map(|s| s.trim().to_string())
         }
     }
 }
@@ -303,7 +298,11 @@ fn extract_xml_tag(text: &str, tag: &str) -> Option<String> {
     let content_start = start_idx + start_tag.len();
     let end_idx = text[content_start..].find(&end_tag)?;
 
-    Some(text[content_start..content_start + end_idx].trim().to_string())
+    Some(
+        text[content_start..content_start + end_idx]
+            .trim()
+            .to_string(),
+    )
 }
 
 /// Generate commit message with retry logic inline in main flow
@@ -391,41 +390,38 @@ async fn clean_commit_message(
 fn check_policy_violations(message: &str) -> Vec<String> {
     let mut violations = Vec::new();
 
-    if message.split_whitespace()
-        .any(EmailAddress::is_valid)
-    {
+    if message.split_whitespace().any(EmailAddress::is_valid) {
         violations.push("Contains email address".to_string());
     }
 
     let repo_filenames = get_repo_filenames().unwrap_or_default();
 
-    if message.split_whitespace()
-        .any(|word| {
-            // Strip trailing period (end of sentence punctuation)
-            let word = word.strip_suffix('.').unwrap_or(word);
+    if message.split_whitespace().any(|word| {
+        // Strip trailing period (end of sentence punctuation)
+        let word = word.strip_suffix('.').unwrap_or(word);
 
-            // Skip if word is an exact match for a filename in the repo
-            if repo_filenames.contains(word) {
-                return false;
+        // Skip if word is an exact match for a filename in the repo
+        if repo_filenames.contains(word) {
+            return false;
+        }
+
+        if let Ok(url) = Url::parse(word) {
+            return url.has_host();
+        }
+
+        if word.contains('.') {
+            if let Ok(domain) = parse_domain_name(word) {
+                return domain.has_known_suffix();
             }
+        }
 
-            if let Ok(url) = Url::parse(word) {
-                return url.has_host();
-            }
-
-            if word.contains('.') {
-                if let Ok(domain) = parse_domain_name(word) {
-                    return domain.has_known_suffix();
-                }
-            }
-
-            false
-        })
-    {
+        false
+    }) {
         violations.push("Contains URL".to_string());
     }
 
-    let has_emoji = message.graphemes(true)
+    let has_emoji = message
+        .graphemes(true)
         .any(|grapheme| emojis::get(grapheme).is_some());
 
     if has_emoji {
@@ -466,7 +462,10 @@ fn handle_config_command(action: &ConfigAction) -> Result<()> {
                 } else {
                     ""
                 };
-                println!("  {} - {} / {}{}", name, preset.provider, preset.model, default_marker);
+                println!(
+                    "  {} - {} / {}{}",
+                    name, preset.provider, preset.model, default_marker
+                );
             }
         }
         ConfigAction::Show => {
@@ -506,7 +505,9 @@ async fn main() -> Result<()> {
     }
 
     if !is_git_repo() {
-        anyhow::bail!("Not in a git repository. Please run this command from within a git repository.");
+        anyhow::bail!(
+            "Not in a git repository. Please run this command from within a git repository."
+        );
     }
 
     // Initialize LLM client with selected preset
@@ -515,33 +516,33 @@ async fn main() -> Result<()> {
     // Check for changes and stage if needed
     if args.staged {
         // Staged-only mode: check for already staged changes
-        let staged_files = get_name_status()
-            .context("Failed to check staged changes")?;
+        let staged_files = get_name_status().context("Failed to check staged changes")?;
 
         if staged_files.trim().is_empty() {
-            println!("No staged changes detected. Use 'git add' to stage files first, or run without --staged to auto-stage all changes.");
+            println!(
+                "No staged changes detected. Use 'git add' to stage files first, or run without --staged to auto-stage all changes."
+            );
             return Ok(());
         }
         println!("Found staged changes, proceeding with commit");
     } else {
         // Normal mode: check for any changes, then stage all
-        let status = get_status()
-            .context("Failed to check git status")?;
+        let status = get_status().context("Failed to check git status")?;
 
         if status.trim().is_empty() {
             println!("No changes detected.");
             return Ok(());
         }
 
-        stage_all_changes()
-            .context("Failed to stage changes")?;
+        stage_all_changes().context("Failed to stage changes")?;
 
         // Verify we have staged changes after adding
-        let staged_files = get_name_status()
-            .context("Failed to verify staged changes")?;
+        let staged_files = get_name_status().context("Failed to verify staged changes")?;
 
         if staged_files.trim().is_empty() {
-            println!("No changes staged for commit (perhaps only untracked files were added and git config ignores them?).");
+            println!(
+                "No changes staged for commit (perhaps only untracked files were added and git config ignores them?)."
+            );
             return Ok(());
         }
     }
@@ -554,14 +555,10 @@ async fn main() -> Result<()> {
     };
     println!("Gathering context for {}", mode_ref);
 
-    let git_diff = get_staged_diff()
-        .context("Failed to get git diff")?;
-    let git_name_status = get_name_status()
-        .context("Failed to get file status")?;
-    let current_branch = get_current_branch()
-        .context("Failed to get current branch")?;
-    let main_branch = get_main_branch()
-        .context("Failed to determine main branch")?;
+    let git_diff = get_staged_diff().context("Failed to get git diff")?;
+    let git_name_status = get_name_status().context("Failed to get file status")?;
+    let current_branch = get_current_branch().context("Failed to get current branch")?;
+    let main_branch = get_main_branch().context("Failed to determine main branch")?;
     let branch_commits = get_branch_commits(&current_branch, &main_branch)
         .context("Failed to get branch commits")?;
 
@@ -585,16 +582,12 @@ async fn main() -> Result<()> {
 
     context.push_str(&format!(
         "Current branch: {}\n\nCommits in {} since branching from {}:\n{}\n\n",
-        current_branch,
-        current_branch,
-        main_branch,
-        branch_commits
+        current_branch, current_branch, main_branch, branch_commits
     ));
 
     context.push_str(&format!(
         "Changed files:\n{}\n\nStaged changes:\n{}",
-        git_name_status,
-        git_diff
+        git_name_status, git_diff
     ));
 
     println!("Generating commit message with {}", llm.provider_name());
@@ -602,9 +595,10 @@ async fn main() -> Result<()> {
     // Generate commit message
     let prompt = prompts::generate_commit_prompt(&context);
 
-    let mut llm_response = generate_commit_message(&llm, &prompt, &prompts::SYSTEM_PROMPT, args.debug)
-        .await
-        .context("Failed to generate commit message")?;
+    let mut llm_response =
+        generate_commit_message(&llm, &prompt, &prompts::SYSTEM_PROMPT, args.debug)
+            .await
+            .context("Failed to generate commit message")?;
 
     let mut commit_message = llm_response.message.clone();
 
@@ -663,9 +657,10 @@ async fn main() -> Result<()> {
             clean_attempts, MAX_CLEAN_ATTEMPTS
         );
 
-        llm_response = clean_commit_message(&llm, &commit_message, &prompts::SYSTEM_PROMPT, args.debug)
-            .await
-            .context("Failed to clean commit message")?;
+        llm_response =
+            clean_commit_message(&llm, &commit_message, &prompts::SYSTEM_PROMPT, args.debug)
+                .await
+                .context("Failed to clean commit message")?;
 
         commit_message = llm_response.message.clone();
     }
@@ -678,8 +673,7 @@ async fn main() -> Result<()> {
     println!("{}", commit_message);
     println!("--------------");
 
-    commit(&commit_message)
-        .context("Failed to commit changes")?;
+    commit(&commit_message).context("Failed to commit changes")?;
 
     if args.nopush {
         println!("Commit successful (skipped push due to --nopush flag)");
@@ -790,10 +784,18 @@ mod tests {
         // Invalid - wrong format
         let result = validate_conventional_commit("Add new feature");
         assert!(!result.is_valid());
-        assert!(result.errors().iter().any(|e| e.contains("Conventional Commits format")));
+        assert!(
+            result
+                .errors()
+                .iter()
+                .any(|e| e.contains("Conventional Commits format"))
+        );
 
         // Valid - all standard types
-        for commit_type in ["feat", "fix", "docs", "style", "refactor", "test", "chore", "perf", "ci", "build", "revert"] {
+        for commit_type in [
+            "feat", "fix", "docs", "style", "refactor", "test", "chore", "perf", "ci", "build",
+            "revert",
+        ] {
             let msg = format!("{}: test message", commit_type);
             assert!(validate_conventional_commit(&msg).is_valid());
         }
@@ -837,7 +839,10 @@ This is a detailed description.
 
         let result = extract_xml_tag(text_with_whitespace, "test");
         assert!(result.is_some());
-        assert_eq!(result.unwrap(), "Content with leading and trailing whitespace");
+        assert_eq!(
+            result.unwrap(),
+            "Content with leading and trailing whitespace"
+        );
     }
 
     #[test]
@@ -892,7 +897,11 @@ and input validation to prevent common security issues.
         assert!(result.is_ok());
 
         let llm_response = result.unwrap();
-        assert!(llm_response.message.contains("feat: add user authentication"));
+        assert!(
+            llm_response
+                .message
+                .contains("feat: add user authentication")
+        );
         assert!(llm_response.message.contains("input validation"));
         assert_eq!(llm_response.raw_response, valid_response);
     }
@@ -936,40 +945,58 @@ feat: add user authentication
 
         let filenames = filenames.unwrap();
         eprintln!("Found {} filenames", filenames.len());
-        eprintln!("Sample filenames: {:?}", filenames.iter().take(10).collect::<Vec<_>>());
+        eprintln!(
+            "Sample filenames: {:?}",
+            filenames.iter().take(10).collect::<Vec<_>>()
+        );
         assert!(!filenames.is_empty(), "Should find filenames in the repo");
 
-        assert!(filenames.contains("main.rs"), "Should contain main.rs. Got: {:?}", filenames.iter().take(20).collect::<Vec<_>>());
-        assert!(filenames.contains("Cargo.toml"), "Should contain Cargo.toml");
+        assert!(
+            filenames.contains("main.rs"),
+            "Should contain main.rs. Got: {:?}",
+            filenames.iter().take(20).collect::<Vec<_>>()
+        );
+        assert!(
+            filenames.contains("Cargo.toml"),
+            "Should contain Cargo.toml"
+        );
     }
 
     #[test]
     fn test_filename_excludes_url_detection() {
         let msg_with_real_filename = "fix: update Cargo.toml dependencies";
         let violations = check_policy_violations(msg_with_real_filename);
-        assert!(!violations.contains(&"Contains URL".to_string()),
-            "Real filename should not be flagged as URL");
+        assert!(
+            !violations.contains(&"Contains URL".to_string()),
+            "Real filename should not be flagged as URL"
+        );
 
         let msg_with_nonexistent_file = "fix: update example.com config";
         let violations = check_policy_violations(msg_with_nonexistent_file);
-        assert!(violations.contains(&"Contains URL".to_string()),
-            "Domain-like string that's not a filename should be flagged");
+        assert!(
+            violations.contains(&"Contains URL".to_string()),
+            "Domain-like string that's not a filename should be flagged"
+        );
     }
 
     #[test]
     fn test_filename_and_url_mixed() {
         let msg = "fix: update Cargo.toml to use https://crates.io/new-crate";
         let violations = check_policy_violations(msg);
-        assert!(violations.contains(&"Contains URL".to_string()),
-            "Should flag actual URL even when message contains valid filenames");
+        assert!(
+            violations.contains(&"Contains URL".to_string()),
+            "Should flag actual URL even when message contains valid filenames"
+        );
     }
 
     #[test]
     fn test_dotted_filenames() {
         let msg = "fix: update main.rs formatting";
         let violations = check_policy_violations(msg);
-        assert!(!violations.contains(&"Contains URL".to_string()),
-            "Filename with dot should not be flagged as domain");
+        assert!(
+            !violations.contains(&"Contains URL".to_string()),
+            "Filename with dot should not be flagged as domain"
+        );
     }
 
     #[test]
@@ -977,25 +1004,33 @@ feat: add user authentication
         // Words ending with period (end of sentence) should not be flagged as URLs
         let msg = "fix: resolve workspace root to enable execution from any directory. Previously relied on relative paths which only worked when executed from workspace root.";
         let violations = check_policy_violations(msg);
-        assert!(!violations.contains(&"Contains URL".to_string()),
-            "Words with trailing periods at end of sentence should not be flagged as URLs");
+        assert!(
+            !violations.contains(&"Contains URL".to_string()),
+            "Words with trailing periods at end of sentence should not be flagged as URLs"
+        );
 
         // But actual domains at end of sentence should still be caught
         let msg_with_domain = "fix: see documentation at example.com.";
         let violations = check_policy_violations(msg_with_domain);
-        assert!(violations.contains(&"Contains URL".to_string()),
-            "Actual domain with trailing period should still be flagged");
+        assert!(
+            violations.contains(&"Contains URL".to_string()),
+            "Actual domain with trailing period should still be flagged"
+        );
 
         // Multiple sentences with various words ending in periods
         let msg_multiple = "feat: add new feature. Update configuration. Test everything.";
         let violations = check_policy_violations(msg_multiple);
-        assert!(!violations.contains(&"Contains URL".to_string()),
-            "Regular words ending sentences should not be flagged");
+        assert!(
+            !violations.contains(&"Contains URL".to_string()),
+            "Regular words ending sentences should not be flagged"
+        );
 
         // Mixed: filename with trailing period should not be flagged
         let msg_filename = "fix: update Cargo.toml.";
         let violations = check_policy_violations(msg_filename);
-        assert!(!violations.contains(&"Contains URL".to_string()),
-            "Filename with trailing period should not be flagged");
+        assert!(
+            !violations.contains(&"Contains URL".to_string()),
+            "Filename with trailing period should not be flagged"
+        );
     }
 }

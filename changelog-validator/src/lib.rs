@@ -3,7 +3,7 @@
 //! This library provides validation for CHANGELOG.md files following the
 //! [Keep a Changelog](https://keepachangelog.com/) format.
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use once_cell::sync::Lazy;
 use regex::Regex;
 use std::path::Path;
@@ -21,8 +21,7 @@ const VALID_SECTIONS: &[&str] = &[
 /// Regex patterns for validation
 static VERSION_PATTERN: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"^## \[([^\]]+)\] - (.+)$").unwrap());
-static DATE_PATTERN: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r"^\d{4}-\d{2}-\d{2}$|^TBD$").unwrap());
+static DATE_PATTERN: Lazy<Regex> = Lazy::new(|| Regex::new(r"^\d{4}-\d{2}-\d{2}$|^TBD$").unwrap());
 static SECTION_PATTERN: Lazy<Regex> = Lazy::new(|| Regex::new(r"^### (.+)$").unwrap());
 
 /// Represents a parsed changelog
@@ -72,18 +71,12 @@ pub fn validate_content(content: &str, path: &Path) -> Result<Changelog> {
 
     // Validate header
     if lines.is_empty() || !lines[0].starts_with("# Changelog") {
-        bail!(
-            "{}: Must start with '# Changelog' header",
-            path.display()
-        );
+        bail!("{}: Must start with '# Changelog' header", path.display());
     }
 
     // Check for [Unreleased] section (disallowed)
     if content.contains("## [Unreleased]") {
-        bail!(
-            "{}: [Unreleased] sections are not allowed",
-            path.display()
-        );
+        bail!("{}: [Unreleased] sections are not allowed", path.display());
     }
 
     // Validate that only blank lines appear between header and first version
@@ -306,10 +299,12 @@ mod tests {
         let content = "## [Unreleased]";
         let result = validate_content(content, Path::new("test.md"));
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("Must start with '# Changelog'"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Must start with '# Changelog'")
+        );
     }
 
     #[test]
@@ -325,10 +320,12 @@ mod tests {
 "#;
         let result = validate_content(content, Path::new("test.md"));
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("[Unreleased] sections are not allowed"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("[Unreleased] sections are not allowed")
+        );
     }
 
     #[test]
@@ -348,7 +345,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
         let result = validate_content(content, Path::new("test.md"));
         assert!(result.is_err());
         let err_msg = result.unwrap_err().to_string();
-        assert!(err_msg.contains("Found content between '# Changelog' header and first version section"));
+        assert!(
+            err_msg
+                .contains("Found content between '# Changelog' header and first version section")
+        );
     }
 
     #[test]

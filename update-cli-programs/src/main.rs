@@ -8,9 +8,7 @@ use std::process::Command;
 
 const WORKSPACE_ROOT: &str = env!("CARGO_MANIFEST_DIR");
 
-const EXCLUDED_PACKAGES: &[&str] = &[
-    "changelog-validator",
-];
+const EXCLUDED_PACKAGES: &[&str] = &["changelog-validator"];
 
 #[derive(Parser)]
 #[command(name = "update-cli-programs")]
@@ -41,21 +39,20 @@ fn main() -> Result<()> {
     let home = std::env::var("HOME").expect("HOME environment variable not set");
 
     // Determine target directory
-    let target_dir = cli.target.unwrap_or_else(|| {
-        PathBuf::from(&home).join(".local").join("bin")
-    });
+    let target_dir = cli
+        .target
+        .unwrap_or_else(|| PathBuf::from(&home).join(".local").join("bin"));
 
     // Create target directory if it doesn't exist
-    fs::create_dir_all(&target_dir)
-        .context("Failed to create target directory")?;
+    fs::create_dir_all(&target_dir).context("Failed to create target directory")?;
 
     // Read workspace Cargo.toml
     let workspace_toml_path = workspace_root.join("Cargo.toml");
-    let workspace_toml_content = fs::read_to_string(&workspace_toml_path)
-        .context("Failed to read workspace Cargo.toml")?;
+    let workspace_toml_content =
+        fs::read_to_string(&workspace_toml_path).context("Failed to read workspace Cargo.toml")?;
 
-    let workspace_toml: WorkspaceToml = toml::from_str(&workspace_toml_content)
-        .context("Failed to parse workspace Cargo.toml")?;
+    let workspace_toml: WorkspaceToml =
+        toml::from_str(&workspace_toml_content).context("Failed to parse workspace Cargo.toml")?;
 
     // Get all workspace members, excluding those in EXCLUDED_PACKAGES
     let programs: Vec<String> = workspace_toml
@@ -86,10 +83,7 @@ fn main() -> Result<()> {
 
     // Install each program
     for program in &programs {
-        let binary_path = workspace_root
-            .join("target")
-            .join("release")
-            .join(program);
+        let binary_path = workspace_root.join("target").join("release").join(program);
 
         if !binary_path.exists() {
             continue;

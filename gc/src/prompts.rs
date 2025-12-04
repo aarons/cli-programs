@@ -91,8 +91,7 @@ commit-type: a functional description of the commit
 Additional context about the commit if needed
 </commit_message>
 "#,
-        original_prompt,
-        previous_response
+        original_prompt, previous_response
     )
 }
 

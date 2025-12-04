@@ -1,7 +1,7 @@
 // Integration tests for gc CLI
 
-use assert_cmd::cargo::cargo_bin_cmd;
 use assert_cmd::Command;
+use assert_cmd::cargo::cargo_bin_cmd;
 use predicates::prelude::*;
 use tempfile::TempDir;
 
@@ -15,15 +15,14 @@ fn test_help_flag() {
         .arg("--help")
         .assert()
         .success()
-        .stdout(predicate::str::contains("Generate conventional commit messages"));
+        .stdout(predicate::str::contains(
+            "Generate conventional commit messages",
+        ));
 }
 
 #[test]
 fn test_version_info() {
-    gc_cmd()
-        .arg("--version")
-        .assert()
-        .success();
+    gc_cmd().arg("--version").assert().success();
 }
 
 #[test]

@@ -85,12 +85,14 @@ fn process_line(line: &str) -> Option<String> {
 
 /// Process the input text and extract all todo items
 fn process_todos(text: &str) -> Vec<String> {
-    info!("Processing input text ({} bytes, {} lines)", text.len(), text.lines().count());
+    info!(
+        "Processing input text ({} bytes, {} lines)",
+        text.len(),
+        text.lines().count()
+    );
     debug!("Input text: {:?}", text);
 
-    let todos: Vec<String> = text.lines()
-        .filter_map(process_line)
-        .collect();
+    let todos: Vec<String> = text.lines().filter_map(process_line).collect();
 
     info!("Extracted {} todos", todos.len());
     todos
@@ -98,7 +100,10 @@ fn process_todos(text: &str) -> Vec<String> {
 
 /// Add a single reminder to macOS Reminders using AppleScript
 fn add_reminder(list_name: &str, reminder_text: &str) -> Result<()> {
-    debug!("Adding reminder to list '{}': {:?}", list_name, reminder_text);
+    debug!(
+        "Adding reminder to list '{}': {:?}",
+        list_name, reminder_text
+    );
 
     // Escape double quotes in the reminder text for AppleScript
     let escaped_text = reminder_text.replace('"', "\\\"");
@@ -145,17 +150,16 @@ fn init_logging() -> Result<String> {
 
     // Create logs directory
     let logs_dir = workspace_root.join("logs");
-    std::fs::create_dir_all(&logs_dir)
-        .context("Failed to create logs directory")?;
+    std::fs::create_dir_all(&logs_dir).context("Failed to create logs directory")?;
 
     let log_path = logs_dir.join("add-reminders.log");
 
     // Check if log file exists and is over 1MB
     if let Ok(metadata) = std::fs::metadata(&log_path) {
-        if metadata.len() > 1_048_576 {  // 1MB in bytes
+        if metadata.len() > 1_048_576 {
+            // 1MB in bytes
             // Truncate the log file
-            std::fs::remove_file(&log_path)
-                .context("Failed to truncate log file")?;
+            std::fs::remove_file(&log_path).context("Failed to truncate log file")?;
         }
     }
 
@@ -167,8 +171,11 @@ fn init_logging() -> Result<String> {
 
     // Write a separator for this run
     let mut file = log_file;
-    writeln!(file, "\n========== New Run: {} ==========",
-        Local::now().format("%Y-%m-%d %H:%M:%S"))?;
+    writeln!(
+        file,
+        "\n========== New Run: {} ==========",
+        Local::now().format("%Y-%m-%d %H:%M:%S")
+    )?;
 
     env_logger::Builder::from_default_env()
         .filter_level(log::LevelFilter::Debug)
@@ -261,7 +268,11 @@ fn main() -> Result<()> {
     }
 
     info!("Successfully added {} reminders", todos.len());
-    println!("\nSuccessfully added {} reminder(s) to '{}'", todos.len(), cli.list);
+    println!(
+        "\nSuccessfully added {} reminder(s) to '{}'",
+        todos.len(),
+        cli.list
+    );
 
     Ok(())
 }
@@ -272,10 +283,7 @@ mod tests {
 
     #[test]
     fn test_process_line_basic() {
-        assert_eq!(
-            process_line("simple todo"),
-            Some("simple todo".to_string())
-        );
+        assert_eq!(process_line("simple todo"), Some("simple todo".to_string()));
     }
 
     #[test]
@@ -345,10 +353,7 @@ change the sheets"#;
     #[test]
     fn test_process_line_various_prefixes() {
         // Test different markdown list prefixes
-        assert_eq!(
-            process_line("* a todo"),
-            Some("a todo".to_string())
-        );
+        assert_eq!(process_line("* a todo"), Some("a todo".to_string()));
         assert_eq!(
             process_line("+ another todo"),
             Some("another todo".to_string())
@@ -366,26 +371,14 @@ change the sheets"#;
     #[test]
     fn test_process_line_whitespace_variations() {
         // All these should extract "foobar"
-        assert_eq!(
-            process_line(" \n - [ ] foobar"),
-            Some("foobar".to_string())
-        );
+        assert_eq!(process_line(" \n - [ ] foobar"), Some("foobar".to_string()));
         assert_eq!(
             process_line("     \n\n  foobar"),
             Some("foobar".to_string())
         );
-        assert_eq!(
-            process_line("- [x] foobar"),
-            Some("foobar".to_string())
-        );
-        assert_eq!(
-            process_line("- foobar"),
-            Some("foobar".to_string())
-        );
-        assert_eq!(
-            process_line("foobar"),
-            Some("foobar".to_string())
-        );
+        assert_eq!(process_line("- [x] foobar"), Some("foobar".to_string()));
+        assert_eq!(process_line("- foobar"), Some("foobar".to_string()));
+        assert_eq!(process_line("foobar"), Some("foobar".to_string()));
     }
 
     #[test]
@@ -404,16 +397,10 @@ change the sheets"#;
     #[test]
     fn test_strip_leading_junk_with_unicode() {
         // Test with zero-width space (U+200B) - strips to first alphanumeric
-        assert_eq!(
-            strip_leading_junk("\u{200B}- [ ] test todo"),
-            "test todo"
-        );
+        assert_eq!(strip_leading_junk("\u{200B}- [ ] test todo"), "test todo");
 
         // Test with object replacement character (U+FFFC)
-        assert_eq!(
-            strip_leading_junk("\u{FFFC}- [ ] test todo"),
-            "test todo"
-        );
+        assert_eq!(strip_leading_junk("\u{FFFC}- [ ] test todo"), "test todo");
 
         // Test with both zero-width space and object replacement character
         assert_eq!(
@@ -444,7 +431,9 @@ change the sheets"#;
 
         // Test with multiple invisible Unicode characters
         assert_eq!(
-            process_line("\u{200B}\u{FFFC}- [ ] remind myself the job interview process is a journey"),
+            process_line(
+                "\u{200B}\u{FFFC}- [ ] remind myself the job interview process is a journey"
+            ),
             Some("remind myself the job interview process is a journey".to_string())
         );
 

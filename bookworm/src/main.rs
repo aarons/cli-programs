@@ -92,7 +92,9 @@ fn handle_config_command(action: &ConfigAction) -> Result<()> {
             let mut config = Config::load()?;
             // Verify preset exists
             config.get_preset(preset)?;
-            config.defaults.insert("bookworm".to_string(), preset.clone());
+            config
+                .defaults
+                .insert("bookworm".to_string(), preset.clone());
             config.save()?;
             println!("Default preset for bookworm set to: {}", preset);
         }
@@ -178,10 +180,7 @@ fn get_unique_path(target: &Path) -> PathBuf {
     }
 
     let stem = target.file_stem().and_then(OsStr::to_str).unwrap_or("");
-    let ext = target
-        .extension()
-        .and_then(OsStr::to_str)
-        .unwrap_or("epub");
+    let ext = target.extension().and_then(OsStr::to_str).unwrap_or("epub");
     let parent = target.parent().unwrap_or(Path::new("."));
 
     for i in 1u32.. {
