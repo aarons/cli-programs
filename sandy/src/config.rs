@@ -63,8 +63,14 @@ impl Default for Config {
 }
 
 impl Config {
-    /// Get the config directory path
+    /// Get the config directory path.
+    ///
+    /// Can be overridden via the `SANDY_CONFIG_DIR` environment variable,
+    /// which is useful for testing without affecting the user's real config.
     pub fn config_dir() -> Result<PathBuf> {
+        if let Ok(override_dir) = std::env::var("SANDY_CONFIG_DIR") {
+            return Ok(PathBuf::from(override_dir));
+        }
         let home = dirs::home_dir().context("Could not determine home directory")?;
         Ok(home.join(".config").join("cli-programs"))
     }
@@ -118,8 +124,8 @@ impl Config {
 
     /// Expand a path (tilde and env vars)
     pub fn expand_path(path: &str) -> Result<PathBuf> {
-        let expanded = shellexpand::full(path)
-            .with_context(|| format!("Failed to expand path: {}", path))?;
+        let expanded =
+            shellexpand::full(path).with_context(|| format!("Failed to expand path: {}", path))?;
         Ok(PathBuf::from(expanded.as_ref()))
     }
 }

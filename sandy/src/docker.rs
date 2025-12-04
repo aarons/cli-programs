@@ -1,4 +1,4 @@
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use sha2::{Digest, Sha256};
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
@@ -115,8 +115,6 @@ pub fn check_default_template_status(
     dockerfile_path: &Path,
     default_template: &str,
 ) -> Result<DefaultTemplateStatus> {
-    let current_default_hash = hash_content(default_template)?;
-
     // If user's Dockerfile doesn't exist, it needs to be created
     if !dockerfile_path.exists() {
         return Ok(DefaultTemplateStatus::NeedsCreation);
@@ -127,6 +125,27 @@ pub fn check_default_template_status(
 
     // Load the hash of the default template that was used to create the user's Dockerfile
     let stored_default_hash = load_default_template_hash()?;
+
+    // Delegate to pure logic function
+    check_default_template_status_impl(&user_dockerfile_hash, default_template, stored_default_hash)
+}
+
+/// Pure logic for determining default template status.
+///
+/// This function contains no I/O and can be easily unit tested by passing
+/// in the required values directly rather than reading them from disk.
+///
+/// # Arguments
+/// * `user_dockerfile_hash` - Hash of the user's current Dockerfile
+/// * `default_template` - The embedded default template content
+/// * `stored_default_hash` - Previously stored hash of the default template that was
+///   used to create the user's Dockerfile (None if never stored)
+fn check_default_template_status_impl(
+    user_dockerfile_hash: &str,
+    default_template: &str,
+    stored_default_hash: Option<String>,
+) -> Result<DefaultTemplateStatus> {
+    let current_default_hash = hash_content(default_template)?;
 
     match stored_default_hash {
         Some(stored_hash) => {
@@ -232,8 +251,7 @@ pub fn prepare_template_assets(dockerfile_dir: &Path, config: &Config) -> Result
             let file_name = path.file_name().unwrap();
             let dst = assets_bin_dir.join(file_name);
 
-            fs::copy(&path, &dst)
-                .with_context(|| format!("Failed to copy {}", path.display()))?;
+            fs::copy(&path, &dst).with_context(|| format!("Failed to copy {}", path.display()))?;
 
             // Ensure the copied file is executable
             let mut perms = fs::metadata(&dst)?.permissions();
@@ -294,7 +312,14 @@ pub fn sandbox_status(workspace: &Path) -> Result<SandboxStatus> {
     let container_name = get_container_name(workspace);
 
     let output = Command::new("docker")
-        .args(["ps", "-a", "--filter", &format!("name={}", container_name), "--format", "{{.Status}}"])
+        .args([
+            "ps",
+            "-a",
+            "--filter",
+            &format!("name={}", container_name),
+            "--format",
+            "{{.Status}}",
+        ])
         .output()
         .context("Failed to check sandbox status")?;
 
@@ -732,32 +757,88 @@ mod tests {
         assert!(matches!(status, DefaultTemplateStatus::NeedsCreation));
     }
 
+    // Tests for check_default_template_status_impl - pure logic tests that don't
+    // depend on the filesystem for stored hash state. These test all branches of
+    // the status determination logic.
+
     #[test]
-    fn test_check_default_template_status_up_to_date_matches_current() {
-        let temp_dir = TempDir::new().unwrap();
-        let dockerfile_path = temp_dir.path().join("Dockerfile");
+    fn test_check_default_template_status_impl_up_to_date_no_stored_hash() {
+        // When there's no stored hash but the user's file matches current default, it's up-to-date
         let default_template = "FROM ubuntu:latest";
+        let user_dockerfile_hash = hash_content(default_template).unwrap();
 
-        // Write the same content as the default
-        fs::write(&dockerfile_path, default_template).unwrap();
-
-        // When there's no stored hash but the file matches current default, it's up-to-date
-        let status = check_default_template_status(&dockerfile_path, default_template).unwrap();
+        let status = check_default_template_status_impl(
+            &user_dockerfile_hash,
+            default_template,
+            None, // no stored hash
+        )
+        .unwrap();
 
         assert!(matches!(status, DefaultTemplateStatus::UpToDate));
     }
 
     #[test]
-    fn test_check_default_template_status_customized_no_stored_hash() {
-        let temp_dir = TempDir::new().unwrap();
-        let dockerfile_path = temp_dir.path().join("Dockerfile");
-        let default_template = "FROM ubuntu:latest";
-
-        // Write different content than the default
-        fs::write(&dockerfile_path, "FROM debian:latest\nRUN custom stuff").unwrap();
-
+    fn test_check_default_template_status_impl_customized_no_stored_hash() {
         // When there's no stored hash and file differs from default, assume customized
-        let status = check_default_template_status(&dockerfile_path, default_template).unwrap();
+        let default_template = "FROM ubuntu:latest";
+        let user_dockerfile_hash = hash_content("FROM debian:latest\nRUN custom stuff").unwrap();
+
+        let status = check_default_template_status_impl(
+            &user_dockerfile_hash,
+            default_template,
+            None, // no stored hash
+        )
+        .unwrap();
+
+        assert!(matches!(status, DefaultTemplateStatus::Customized));
+    }
+
+    #[test]
+    fn test_check_default_template_status_impl_up_to_date_with_stored_hash() {
+        // Stored hash matches current default and user's file matches stored hash
+        let default_template = "FROM ubuntu:latest";
+        let default_hash = hash_content(default_template).unwrap();
+
+        let status = check_default_template_status_impl(
+            &default_hash, // user's file matches the default
+            default_template,
+            Some(default_hash.clone()), // stored hash matches current default
+        )
+        .unwrap();
+
+        assert!(matches!(status, DefaultTemplateStatus::UpToDate));
+    }
+
+    #[test]
+    fn test_check_default_template_status_impl_needs_update() {
+        // Stored hash exists, user's file matches old stored hash, but embedded default changed
+        let old_default = "FROM ubuntu:20.04";
+        let new_default = "FROM ubuntu:22.04";
+        let old_default_hash = hash_content(old_default).unwrap();
+
+        let status = check_default_template_status_impl(
+            &old_default_hash,              // user's file still has old default
+            new_default,                    // embedded default has changed
+            Some(old_default_hash.clone()), // stored hash is the old default
+        )
+        .unwrap();
+
+        assert!(matches!(status, DefaultTemplateStatus::NeedsUpdate));
+    }
+
+    #[test]
+    fn test_check_default_template_status_impl_customized_with_stored_hash() {
+        // Stored hash exists but user's file differs from it (user customized)
+        let default_template = "FROM ubuntu:latest";
+        let default_hash = hash_content(default_template).unwrap();
+        let customized_hash = hash_content("FROM ubuntu:latest\nRUN my-custom-stuff").unwrap();
+
+        let status = check_default_template_status_impl(
+            &customized_hash, // user modified the file
+            default_template,
+            Some(default_hash), // stored hash is the original default
+        )
+        .unwrap();
 
         assert!(matches!(status, DefaultTemplateStatus::Customized));
     }
@@ -793,4 +874,3 @@ mod tests {
         assert_eq!(content, new_default);
     }
 }
-

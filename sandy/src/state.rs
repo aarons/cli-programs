@@ -175,8 +175,16 @@ mod tests {
         state.add_sandbox(path2.clone());
 
         assert_eq!(state.sandboxes.len(), 2);
-        assert!(state.sandboxes.contains_key(&path1.to_string_lossy().to_string()));
-        assert!(state.sandboxes.contains_key(&path2.to_string_lossy().to_string()));
+        assert!(
+            state
+                .sandboxes
+                .contains_key(&path1.to_string_lossy().to_string())
+        );
+        assert!(
+            state
+                .sandboxes
+                .contains_key(&path2.to_string_lossy().to_string())
+        );
     }
 
     #[test]
@@ -185,7 +193,9 @@ mod tests {
         let path = PathBuf::from("/test/repo");
 
         state.add_sandbox(path.clone());
-        let first_time = state.sandboxes.get(&path.to_string_lossy().to_string())
+        let first_time = state
+            .sandboxes
+            .get(&path.to_string_lossy().to_string())
             .unwrap()
             .created_at;
 
@@ -193,7 +203,9 @@ mod tests {
         std::thread::sleep(std::time::Duration::from_millis(10));
 
         state.add_sandbox(path.clone());
-        let second_time = state.sandboxes.get(&path.to_string_lossy().to_string())
+        let second_time = state
+            .sandboxes
+            .get(&path.to_string_lossy().to_string())
             .unwrap()
             .created_at;
 
