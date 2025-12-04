@@ -59,10 +59,7 @@ fn all_workspace_changelogs_are_valid() {
 
         match validate_changelog(changelog_path) {
             Ok(changelog) => {
-                println!(
-                    "✓ ({} version(s))",
-                    changelog.versions.len()
-                );
+                println!("✓ ({} version(s))", changelog.versions.len());
             }
             Err(e) => {
                 println!("✗");

@@ -2,7 +2,9 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum LlmError {
-    #[error("API key not found for {provider}. Set {env_var} environment variable or add to config.")]
+    #[error(
+        "API key not found for {provider}. Set {env_var} environment variable or add to config."
+    )]
     MissingApiKey { provider: String, env_var: String },
 
     #[error("Provider not available: {0}")]
@@ -10,6 +12,9 @@ pub enum LlmError {
 
     #[error("Rate limit exceeded{}", .retry_after.map(|s| format!(". Retry after {} seconds", s)).unwrap_or_default())]
     RateLimited { retry_after: Option<u64> },
+
+    #[error("Server overloaded (HTTP 503): {message}")]
+    ServerOverloaded { message: String },
 
     #[error("API error{}: {message}", status_code.map(|c| format!(" (HTTP {})", c)).unwrap_or_default())]
     ApiError {

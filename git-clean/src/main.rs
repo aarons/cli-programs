@@ -29,8 +29,7 @@ fn git(args: &[&str]) -> Result<String> {
         anyhow::bail!("git command failed: {}", stderr);
     }
 
-    String::from_utf8(output.stdout)
-        .context("Git output was not valid UTF-8")
+    String::from_utf8(output.stdout).context("Git output was not valid UTF-8")
 }
 
 /// Check if current directory is a git repository
@@ -110,7 +109,12 @@ fn get_merged_local_branches(main_branch: &str) -> Result<Vec<String>> {
 /// Excludes: HEAD, main, master, develop, origin/main, origin/master, origin/develop
 fn get_merged_remote_branches(main_branch: &str) -> Result<Vec<String>> {
     // Check against origin/main to properly evaluate remote branch state
-    let output = git(&["branch", "-r", "--merged", &format!("origin/{}", main_branch)])?;
+    let output = git(&[
+        "branch",
+        "-r",
+        "--merged",
+        &format!("origin/{}", main_branch),
+    ])?;
 
     let protected_branches = ["main", "master", "develop"];
 
@@ -198,8 +202,7 @@ fn main() -> Result<()> {
     }
 
     // Detect main branch (main or master)
-    let main_branch = get_main_branch()
-        .context("Failed to determine main branch")?;
+    let main_branch = get_main_branch().context("Failed to determine main branch")?;
 
     if main_branch == "master" {
         println!("Using 'master' as main branch");
@@ -207,19 +210,16 @@ fn main() -> Result<()> {
 
     // Fetch and prune remote references
     println!("Fetching and pruning remote references...");
-    git(&["fetch", "--prune"])
-        .context("Failed to fetch and prune")?;
+    git(&["fetch", "--prune"]).context("Failed to fetch and prune")?;
 
     println!("Evaluating branches");
     println!();
 
     // Clean local branches (includes handling of associated remotes)
-    clean_local_branches(&main_branch)
-        .context("Failed to clean local branches")?;
+    clean_local_branches(&main_branch).context("Failed to clean local branches")?;
 
     // Clean remote branches (independent of local branch state)
-    clean_remote_branches(&main_branch)
-        .context("Failed to clean remote branches")?;
+    clean_remote_branches(&main_branch).context("Failed to clean remote branches")?;
 
     println!();
     println!("Done!");

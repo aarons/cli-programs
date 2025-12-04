@@ -3,7 +3,7 @@
 //! Provides a simplified interface to the llm-client crate.
 
 use anyhow::{Context, Result};
-use llm_client::{get_provider, Config, LlmProvider, LlmRequest};
+use llm_client::{Config, LlmProvider, LlmRequest, get_provider};
 
 /// Wrapper around LLM providers for ask
 pub struct LlmClient {

@@ -1,4 +1,4 @@
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use clap::Parser;
 use std::process::{Command, Stdio};
 
@@ -39,7 +39,10 @@ fn run() -> Result<()> {
     println!("Feature branch: {}", feature_branch);
 
     // Push feature branch to origin
-    println!("Ensuring remote 'origin' has the latest '{}'...", feature_branch);
+    println!(
+        "Ensuring remote 'origin' has the latest '{}'...",
+        feature_branch
+    );
     push_branch(&feature_branch)?;
 
     // Switch to main branch
@@ -181,7 +184,10 @@ fn is_git_status_clean() -> Result<bool> {
 }
 
 fn perform_simple_merge(feature_branch: &str) -> Result<()> {
-    println!("Performing simple merge of '{}' into current branch...", feature_branch);
+    println!(
+        "Performing simple merge of '{}' into current branch...",
+        feature_branch
+    );
 
     let status = Command::new("git")
         .args(["merge", feature_branch])
@@ -189,9 +195,7 @@ fn perform_simple_merge(feature_branch: &str) -> Result<()> {
         .context("Failed to merge branch")?;
 
     if !status.success() {
-        bail!(
-            "Merge failed. Please resolve conflicts manually and complete the merge."
-        );
+        bail!("Merge failed. Please resolve conflicts manually and complete the merge.");
     }
 
     // Delete the feature branch after successful merge
@@ -233,7 +237,10 @@ fn perform_squash_merge(feature_branch: &str, main_branch: &str) -> Result<()> {
     }
 
     // Perform squash merge
-    println!("Attempting squash merge of '{}' into '{}'...", feature_branch, main_branch);
+    println!(
+        "Attempting squash merge of '{}' into '{}'...",
+        feature_branch, main_branch
+    );
     let status = Command::new("git")
         .args(["merge", "--squash", feature_branch])
         .status()
@@ -243,7 +250,9 @@ fn perform_squash_merge(feature_branch: &str, main_branch: &str) -> Result<()> {
         // Check for conflicts
         let has_conflicts = check_for_conflicts()?;
         if has_conflicts {
-            bail!("Merge conflict detected after 'git merge --squash'. Resolve conflicts, then run 'gc' manually.");
+            bail!(
+                "Merge conflict detected after 'git merge --squash'. Resolve conflicts, then run 'gc' manually."
+            );
         } else {
             bail!("git merge --squash failed for an unknown reason.");
         }
@@ -266,7 +275,10 @@ fn perform_squash_merge(feature_branch: &str, main_branch: &str) -> Result<()> {
 
         // Generate commit message and commit using gc
         println!("Staging changes and generating commit message using gc...");
-        let context_msg = format!("Commit history from '{}':\n{}", feature_branch, branch_history);
+        let context_msg = format!(
+            "Commit history from '{}':\n{}",
+            feature_branch, branch_history
+        );
 
         let last_commit_before = get_current_commit()?;
         println!("Last commit before gc: {}", last_commit_before);
@@ -318,9 +330,13 @@ fn check_for_conflicts() -> Result<bool> {
 
     let status_output = String::from_utf8(output.stdout)?;
     Ok(status_output.lines().any(|line| {
-        line.starts_with("AA") || line.starts_with("UU") || line.starts_with("DD") ||
-        line.starts_with("AU") || line.starts_with("UA") || line.starts_with("DU") ||
-        line.starts_with("UD")
+        line.starts_with("AA")
+            || line.starts_with("UU")
+            || line.starts_with("DD")
+            || line.starts_with("AU")
+            || line.starts_with("UA")
+            || line.starts_with("DU")
+            || line.starts_with("UD")
     }))
 }
 

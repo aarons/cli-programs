@@ -167,7 +167,10 @@ mod tests {
     #[test]
     fn test_config_path() {
         let path = Config::config_path().unwrap();
-        assert!(path.to_string_lossy().contains(".config/cli-programs/llm.toml"));
+        assert!(
+            path.to_string_lossy()
+                .contains(".config/cli-programs/llm.toml")
+        );
     }
 
     #[test]

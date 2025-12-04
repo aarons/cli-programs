@@ -23,12 +23,7 @@ pub struct OpenAICompatibleProvider {
 
 impl OpenAICompatibleProvider {
     /// Create a new OpenAI-compatible provider
-    pub fn new(
-        model: &str,
-        base_url: &str,
-        api_key: String,
-        name: &'static str,
-    ) -> Result<Self> {
+    pub fn new(model: &str, base_url: &str, api_key: String, name: &'static str) -> Result<Self> {
         let client = Client::new();
 
         Ok(Self {
@@ -137,23 +132,29 @@ impl LlmProvider for OpenAICompatibleProvider {
         let status = response.status();
         if !status.is_success() {
             let error_text = response.text().await.unwrap_or_default();
-            let message = if let Ok(error_response) = serde_json::from_str::<ErrorResponse>(&error_text) {
-                error_response.error.message
-            } else {
-                error_text
-            };
+            let message =
+                if let Ok(error_response) = serde_json::from_str::<ErrorResponse>(&error_text) {
+                    error_response.error.message
+                } else {
+                    error_text
+                };
+
+            // Handle 503 (server overloaded) separately for retry logic
+            if status.as_u16() == 503 {
+                return Err(LlmError::ServerOverloaded { message });
+            }
+
             return Err(LlmError::ApiError {
                 message,
                 status_code: Some(status.as_u16()),
             });
         }
 
-        let chat_response: ChatCompletionResponse = response.json().await.map_err(|e| {
-            LlmError::ApiError {
+        let chat_response: ChatCompletionResponse =
+            response.json().await.map_err(|e| LlmError::ApiError {
                 message: format!("Failed to parse response: {}", e),
                 status_code: None,
-            }
-        })?;
+            })?;
 
         let content = chat_response
             .choices
