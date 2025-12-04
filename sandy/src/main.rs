@@ -216,7 +216,20 @@ fn cmd_resume() -> Result<()> {
     let config = Config::load()?;
     let state = State::load()?;
 
-    // Interactive selection
+    // Try to auto-select sandbox for current working directory
+    if let Ok(cwd) = env::current_dir() {
+        if let Ok(repo_path) = get_repo_root(&cwd) {
+            let repo_key = repo_path.to_string_lossy().to_string();
+            if let Some(info) = state.sandboxes.get(&repo_key) {
+                let repo_name = get_repo_name(&info.path);
+                println!("Resuming sandbox '{}'...", repo_name);
+                start_sandbox(&info.path, &config)?;
+                return Ok(());
+            }
+        }
+    }
+
+    // Fall back to interactive selection
     let entries = get_sandbox_entries(&state)?;
     if entries.is_empty() {
         println!("No sandboxes found. Create one with 'sandy new'");

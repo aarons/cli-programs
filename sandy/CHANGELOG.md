@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.0] - 2025-12-04
+
+### Changed
+- `sandy resume` now auto-selects the sandbox for the current directory when available
+- Interactive pick list only shown when not in a directory with an existing sandbox
+
 ## [0.5.0] - 2025-12-04
 
 ### Changed
