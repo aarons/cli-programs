@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.4.2] - 2025-12-04
+
+### Added
+- Java 17 (OpenJDK) and Maven to default Docker template for Java project support
+
 ## [0.4.1] - 2025-12-02
 
 ### Fixed
