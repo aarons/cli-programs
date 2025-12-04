@@ -214,15 +214,15 @@ fn cmd_resume() -> Result<()> {
     let state = State::load()?;
 
     // Try to auto-select sandbox for current working directory
-    if let Ok(cwd) = env::current_dir() {
-        if let Ok(repo_path) = get_repo_root(&cwd) {
-            let repo_key = repo_path.to_string_lossy().to_string();
-            if let Some(info) = state.sandboxes.get(&repo_key) {
-                let repo_name = get_repo_name(&info.path);
-                println!("Resuming sandbox '{}'...", repo_name);
-                start_sandbox(&info.path, &config)?;
-                return Ok(());
-            }
+    if let Ok(cwd) = env::current_dir()
+        && let Ok(repo_path) = get_repo_root(&cwd)
+    {
+        let repo_key = repo_path.to_string_lossy().to_string();
+        if let Some(info) = state.sandboxes.get(&repo_key) {
+            let repo_name = get_repo_name(&info.path);
+            println!("Resuming sandbox '{}'...", repo_name);
+            start_sandbox(&info.path, &config)?;
+            return Ok(());
         }
     }
 
@@ -312,10 +312,9 @@ fn cmd_config(action: ConfigAction) -> Result<()> {
         ConfigAction::CreateDockerfile => {
             let template_path = get_template_dockerfile()?;
 
-            if template_path.exists() {
-                if !confirm("Template Dockerfile already exists. Overwrite?")? {
-                    return Ok(());
-                }
+            if template_path.exists() && !confirm("Template Dockerfile already exists. Overwrite?")?
+            {
+                return Ok(());
             }
 
             // Create template directory

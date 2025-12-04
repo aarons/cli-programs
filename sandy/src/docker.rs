@@ -19,12 +19,33 @@ pub enum SandboxStatus {
 }
 
 /// Get the sandbox container name for a workspace path
+///
+/// Uses format: `sandy-{dirname}-{short_hash}` for readability while maintaining uniqueness.
+/// The dirname is sanitized to meet Docker container naming requirements.
 fn get_container_name(workspace: &Path) -> String {
-    // Create a deterministic name based on workspace path
+    let dirname = workspace
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "workspace".to_string());
+
+    // Sanitize for Docker container name requirements: [a-zA-Z0-9][a-zA-Z0-9_.-]*
+    let sanitized: String = dirname
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.' {
+                c
+            } else {
+                '-'
+            }
+        })
+        .collect();
+
+    // Add short hash for uniqueness (handles same-name directories in different paths)
     let mut hasher = Sha256::new();
     hasher.update(workspace.to_string_lossy().as_bytes());
     let hash = hex::encode(hasher.finalize());
-    format!("sandy-{}", &hash[..12])
+
+    format!("sandy-{}-{}", sanitized.to_lowercase(), &hash[..6])
 }
 
 /// Check if Docker is available
@@ -353,10 +374,10 @@ pub fn start_sandbox(workspace: &Path, config: &Config) -> Result<()> {
 
     // Environment variables
     for (key, value) in &config.env {
-        if let Ok(expanded) = Config::expand_env(value) {
-            if !expanded.is_empty() {
-                cmd.args(["-e", &format!("{}={}", key, expanded)]);
-            }
+        if let Ok(expanded) = Config::expand_env(value)
+            && !expanded.is_empty()
+        {
+            cmd.args(["-e", &format!("{}={}", key, expanded)]);
         }
     }
 
@@ -482,9 +503,13 @@ mod tests {
         let path = Path::new("/test/workspace");
         let name = get_container_name(path);
 
-        assert!(name.starts_with("sandy-"));
-        // Hash should be 12 characters
-        assert_eq!(name.len(), "sandy-".len() + 12);
+        // Format: sandy-{dirname}-{6 char hash}
+        assert!(name.starts_with("sandy-workspace-"));
+        // Total length: "sandy-" (6) + "workspace" (9) + "-" (1) + hash (6) = 22
+        assert_eq!(name.len(), 22);
+        // Hash suffix should be 6 hex characters
+        let hash_part = &name[name.len() - 6..];
+        assert!(hash_part.chars().all(|c| c.is_ascii_hexdigit()));
     }
 
     #[test]
@@ -500,12 +525,23 @@ mod tests {
 
     #[test]
     fn test_get_container_name_special_characters() {
-        let path = Path::new("/test/workspace with spaces/and-dashes_underscores");
+        // Test with valid special chars (dashes, underscores)
+        let path = Path::new("/test/workspace/and-dashes_underscores");
         let name = get_container_name(path);
+        assert!(name.starts_with("sandy-and-dashes_underscores-"));
 
-        assert!(name.starts_with("sandy-"));
-        // Should still produce a valid container name (alphanumeric hash)
-        let hash_part = &name["sandy-".len()..];
+        // Test with spaces (should be replaced with dashes)
+        let path_with_spaces = Path::new("/test/my project name");
+        let name_spaces = get_container_name(path_with_spaces);
+        assert!(name_spaces.starts_with("sandy-my-project-name-"));
+
+        // Test with dots (allowed in Docker container names)
+        let path_with_dots = Path::new("/test/my.project.name");
+        let name_dots = get_container_name(path_with_dots);
+        assert!(name_dots.starts_with("sandy-my.project.name-"));
+
+        // Verify hash suffix is valid hex
+        let hash_part = &name[name.len() - 6..];
         assert!(hash_part.chars().all(|c| c.is_ascii_hexdigit()));
     }
 
