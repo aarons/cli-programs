@@ -192,12 +192,51 @@ They can and should help engineers understand the intention behind the code.
 
 ## Validation
 
-- [ ] `cargo test -p gc` passes with new tests
-- [ ] `cargo test -p llm-client` passes (if mock provider added there)
-- [ ] Tests clearly document the intended behavior (readable test names and assertions)
-- [ ] No boilerplate tests that just check trivial things
-- [ ] Coverage of the four core behaviors listed above
+- [x] `cargo test -p gc` passes with new tests
+- [x] `cargo test -p llm-client` passes (if mock provider added there)
+- [x] Tests clearly document the intended behavior (readable test names and assertions)
+- [x] No boilerplate tests that just check trivial things
+- [x] Coverage of the four core behaviors listed above
 
 ## Documentation
 
 No documentation updates required. The tests themselves serve as documentation of the intended behavior.
+
+---
+
+## Completion Summary
+
+**Status**: Completed
+
+**Date**: 2025-12-04
+
+### What was implemented
+
+1. **MockProvider** (`llm-client/src/providers/mock.rs`): A configurable mock LLM provider that can:
+   - Fail N times then succeed (`fails_then_succeeds`)
+   - Always fail with a specified error (`always_fails`)
+   - Always succeed with a specified response (`always_succeeds`)
+   - Track call counts for verification
+
+2. **Test constructor** (`gc/src/llm.rs`): Added `LlmClient::with_provider()` under `#[cfg(test)]` to allow injecting mock providers in tests.
+
+3. **Four focused tests** covering the core behaviors:
+   - `retries_on_server_overloaded_then_succeeds`: Verifies retry succeeds on 3rd attempt after 2 failures
+   - `no_retry_on_non_retryable_errors`: Verifies immediate failure on non-retryable errors (e.g., MissingApiKey)
+   - `exhausts_retries_without_fallback`: Verifies proper failure message after 3 retries when no fallback configured
+   - `no_fallback_when_already_using_claude_cli`: Verifies no infinite fallback loop when already using claude-cli
+
+### Files changed
+
+- `llm-client/src/providers/mock.rs` (new) - MockProvider implementation with its own unit tests
+- `llm-client/src/providers/mod.rs` - Exports MockProvider
+- `llm-client/src/lib.rs` - Re-exports MockProvider
+- `gc/src/llm.rs` - Added test constructor and 4 behavior tests
+
+### Test results
+
+```
+cargo test -p llm-client  # 8 passed
+cargo test -p gc          # 18 passed (4 new)
+cargo test                # All workspace tests pass
+```
