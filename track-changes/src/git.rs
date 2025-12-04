@@ -24,6 +24,12 @@ pub fn is_git_repo(path: &Path) -> bool {
     git2::Repository::open(path).is_ok()
 }
 
+/// Initialize a new git repository in the specified directory
+pub fn init_repo(path: &Path) -> Result<()> {
+    git2::Repository::init(path).context("Failed to initialize git repository")?;
+    Ok(())
+}
+
 /// Get list of changed files from git status --porcelain
 pub fn get_changed_files(path: &Path) -> Result<Vec<String>> {
     let status = git(&["status", "--porcelain"], path)?;

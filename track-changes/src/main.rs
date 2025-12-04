@@ -6,6 +6,7 @@ mod log;
 use anyhow::{Context, Result};
 use chrono::Local;
 use clap::{Parser, Subcommand};
+use std::io::{self, Write};
 use std::path::PathBuf;
 
 use config::Config;
@@ -91,15 +92,33 @@ fn main() -> Result<()> {
     Ok(())
 }
 
+/// Prompt the user for a yes/no confirmation
+fn prompt_yes_no(prompt: &str) -> Result<bool> {
+    print!("{} [y/N]: ", prompt);
+    io::stdout().flush().context("Failed to flush stdout")?;
+
+    let mut input = String::new();
+    io::stdin()
+        .read_line(&mut input)
+        .context("Failed to read input")?;
+
+    let answer = input.trim().to_lowercase();
+    Ok(answer == "y" || answer == "yes")
+}
+
 /// Add a directory to the watch list
 /// Returns Ok(true) if the directory was newly added, Ok(false) if already watching
 fn cmd_add_directory(path: &PathBuf) -> Result<bool> {
-    // Validate it's a git repo
+    // Validate it's a git repo, offer to initialize if not
     if !git::is_git_repo(path) {
-        anyhow::bail!(
-            "Not a git repository: {}\nInitialize with 'git init' first.",
-            path.display()
-        );
+        println!("Not a git repository: {}", path.display());
+
+        if prompt_yes_no("Initialize a git repository here?")? {
+            git::init_repo(path)?;
+            println!("Initialized git repository");
+        } else {
+            anyhow::bail!("Cannot add non-git directory to watch list");
+        }
     }
 
     let mut config = Config::load()?;
