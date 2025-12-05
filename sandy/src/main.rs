@@ -11,9 +11,9 @@ use std::path::PathBuf;
 
 use config::Config;
 use docker::{
-    DefaultTemplateStatus, build_template, check_default_template_status, check_docker,
-    check_docker_sandbox, remove_sandbox, start_sandbox, template_exists, template_needs_rebuild,
-    update_dockerfile_from_default,
+    DefaultTemplateStatus, build_template, build_template_no_cache, check_default_template_status,
+    check_docker, check_docker_sandbox, remove_sandbox, start_sandbox, template_exists,
+    template_needs_rebuild, update_dockerfile_from_default,
 };
 use interactive::{confirm, display_sandbox_list, get_sandbox_entries, prompt_selection};
 use state::State;
@@ -41,7 +41,18 @@ enum Commands {
     List,
     /// Remove a sandbox environment (interactive selection)
     Remove,
-    /// Show or modify configuration
+    /// Build or rebuild the sandbox template image
+    Build {
+        /// Force a complete rebuild, ignoring Docker's build cache
+        #[arg(long, short)]
+        force: bool,
+    },
+    /// Manage settings (sandy.toml) and Dockerfile template
+    #[command(long_about = "Manage sandy configuration.\n\n\
+        Sandy uses two configuration files:\n\n\
+        1. sandy.toml - Settings like template image name, volume mounts, and environment variables\n\
+        2. Dockerfile - The Docker image template that defines what's installed in your sandbox\n\n\
+        Use 'sandy config show' to view settings, 'sandy config dockerfile' to view the Dockerfile.")]
     Config {
         #[command(subcommand)]
         action: ConfigAction,
@@ -50,16 +61,18 @@ enum Commands {
 
 #[derive(Subcommand)]
 enum ConfigAction {
-    /// Show current configuration
+    /// Show current configuration (sandy.toml settings)
     Show,
-    /// Set a configuration value
+    /// Set a configuration value in sandy.toml
     Set {
         /// Configuration key
         key: String,
         /// Configuration value
         value: String,
     },
-    /// Create a Dockerfile template for customization
+    /// Show Dockerfile path and contents
+    Dockerfile,
+    /// Create or reset the Dockerfile template for customization
     CreateDockerfile,
 }
 
@@ -71,6 +84,7 @@ fn main() -> Result<()> {
         Some(Commands::Resume) => cmd_resume(),
         Some(Commands::List) => cmd_list(),
         Some(Commands::Remove) => cmd_remove(),
+        Some(Commands::Build { force }) => cmd_build(force),
         Some(Commands::Config { action }) => cmd_config(action),
         None => cmd_interactive(),
     }
@@ -286,6 +300,46 @@ fn cmd_remove() -> Result<()> {
     Ok(())
 }
 
+fn cmd_build(force: bool) -> Result<()> {
+    check_docker()?;
+
+    let mut config = Config::load()?;
+
+    // Get or create template name
+    let template_name = config
+        .template_image
+        .clone()
+        .unwrap_or_else(|| DEFAULT_TEMPLATE_IMAGE.to_string());
+    let template_dockerfile = get_template_dockerfile()?;
+
+    // Ensure Dockerfile exists
+    if !template_dockerfile.exists() {
+        println!("Creating default Dockerfile...");
+        update_dockerfile_from_default(&template_dockerfile, DEFAULT_DOCKERFILE)?;
+        println!(
+            "Created default Dockerfile at: {}",
+            template_dockerfile.display()
+        );
+    }
+
+    // Build the template
+    if force {
+        println!("Force rebuilding template (ignoring Docker cache)...");
+        build_template_no_cache(&template_dockerfile, &template_name, &config)?;
+    } else {
+        println!("Building template...");
+        build_template(&template_dockerfile, &template_name, &config)?;
+    }
+
+    // Update config with template_image if not already set
+    if config.template_image.is_none() {
+        config.template_image = Some(template_name);
+        config.save()?;
+    }
+
+    Ok(())
+}
+
 fn cmd_config(action: ConfigAction) -> Result<()> {
     match action {
         ConfigAction::Show => {
@@ -294,6 +348,22 @@ fn cmd_config(action: ConfigAction) -> Result<()> {
             println!("Configuration file: {}", Config::config_path()?.display());
             println!("{:-<60}", "");
             println!("{}", toml_str);
+        }
+        ConfigAction::Dockerfile => {
+            let dockerfile_path = get_template_dockerfile()?;
+            println!("Dockerfile path: {}", dockerfile_path.display());
+            println!("{:-<60}", "");
+
+            if dockerfile_path.exists() {
+                let contents = std::fs::read_to_string(&dockerfile_path)
+                    .context("Failed to read Dockerfile")?;
+                println!("{}", contents);
+            } else {
+                println!("(Dockerfile does not exist yet)");
+                println!();
+                println!("A default Dockerfile will be created automatically when you run 'sandy new'.");
+                println!("To create it now for customization, run: sandy config create-dockerfile");
+            }
         }
         ConfigAction::Set { key, value } => {
             let mut config = Config::load()?;
