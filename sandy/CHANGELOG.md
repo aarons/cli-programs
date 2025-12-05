@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.3.0] - 2025-12-04
+
+### Added
+- `sandy build` command to manually build or rebuild the template image
+- `--force` flag to rebuild from scratch, ignoring Docker's build cache
+
+### Fixed
+- JAVA_HOME now uses architecture-agnostic path (`/usr/lib/jvm/default-java`) instead of hardcoded amd64 path
+
 ## [1.2.0] - 2025-12-04
 
 ### Changed

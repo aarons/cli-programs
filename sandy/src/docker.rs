@@ -295,22 +295,48 @@ pub fn prepare_template_assets(dockerfile_dir: &Path, config: &Config) -> Result
 
 /// Build the custom template image
 pub fn build_template(dockerfile_path: &Path, image_name: &str, config: &Config) -> Result<()> {
+    build_template_impl(dockerfile_path, image_name, config, false)
+}
+
+/// Build the custom template image, optionally ignoring Docker's build cache
+pub fn build_template_no_cache(
+    dockerfile_path: &Path,
+    image_name: &str,
+    config: &Config,
+) -> Result<()> {
+    build_template_impl(dockerfile_path, image_name, config, true)
+}
+
+fn build_template_impl(
+    dockerfile_path: &Path,
+    image_name: &str,
+    config: &Config,
+    no_cache: bool,
+) -> Result<()> {
     let dockerfile_dir = dockerfile_path.parent().unwrap_or(Path::new("."));
 
     // Prepare assets before building
     prepare_template_assets(dockerfile_dir, config)?;
 
-    println!("Building custom template image: {}", image_name);
+    if no_cache {
+        println!(
+            "Building custom template image (no cache): {}",
+            image_name
+        );
+    } else {
+        println!("Building custom template image: {}", image_name);
+    }
 
-    let status = Command::new("docker")
-        .args([
-            "build",
-            "-t",
-            image_name,
-            "-f",
-            &dockerfile_path.to_string_lossy(),
-            &dockerfile_dir.to_string_lossy(),
-        ])
+    let mut cmd = Command::new("docker");
+    cmd.args(["build", "-t", image_name]);
+
+    if no_cache {
+        cmd.arg("--no-cache");
+    }
+
+    cmd.args(["-f", &dockerfile_path.to_string_lossy(), &dockerfile_dir.to_string_lossy()]);
+
+    let status = cmd
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())
         .status()
