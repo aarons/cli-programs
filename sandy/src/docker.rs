@@ -7,7 +7,8 @@ use std::process::{Command, Stdio};
 
 use crate::config::Config;
 use crate::state::{
-    load_default_template_hash, load_template_hash, save_default_template_hash, save_template_hash,
+    load_default_template_hash, load_template_digest, load_template_hash,
+    save_default_template_hash, save_template_digest, save_template_hash,
 };
 
 /// Status of a sandbox container
@@ -86,6 +87,25 @@ pub fn template_exists(image_name: &str) -> Result<bool> {
         .context("Failed to check for template image")?;
 
     Ok(!String::from_utf8_lossy(&output.stdout).trim().is_empty())
+}
+
+/// Get the digest (ID) of a Docker image
+pub fn get_image_digest(image_name: &str) -> Result<String> {
+    let output = Command::new("docker")
+        .args(["image", "inspect", image_name, "--format", "{{.Id}}"])
+        .output()
+        .context("Failed to get image digest")?;
+
+    if !output.status.success() {
+        bail!(
+            "Failed to get digest for image '{}': {}",
+            image_name,
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    let digest = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    Ok(digest)
 }
 
 /// Calculate hash of a Dockerfile
@@ -346,11 +366,16 @@ fn build_template_impl(
         bail!("Failed to build template image");
     }
 
-    // Save the hash after successful build
+    // Save the Dockerfile hash after successful build
     let hash = hash_dockerfile(dockerfile_path)?;
     save_template_hash(&hash)?;
 
+    // Get and save the image digest for use with docker sandbox
+    let digest = get_image_digest(image_name)?;
+    save_template_digest(&digest)?;
+
     println!("Template image built successfully: {}", image_name);
+    println!("Image digest: {}", digest);
     Ok(())
 }
 
@@ -407,8 +432,11 @@ pub fn start_sandbox(workspace: &Path, config: &Config) -> Result<()> {
         }
     }
 
-    // Custom template if configured
-    if let Some(ref template) = config.template_image {
+    // Use the stored image digest for the template (bypasses Docker Sandbox's cache)
+    // Fall back to template_image name if no digest is stored (first run before build)
+    if let Some(digest) = load_template_digest()? {
+        cmd.args(["--template", &digest]);
+    } else if let Some(ref template) = config.template_image {
         cmd.args(["--template", template]);
     }
 

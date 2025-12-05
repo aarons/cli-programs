@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.4.0] - 2025-12-04
+
+### Fixed
+- Sandboxes now use the exact Docker image digest instead of the image name, fixing an issue where Docker Sandbox would use stale cached templates even after rebuilding
+
 ## [1.3.0] - 2025-12-04
 
 ### Added
