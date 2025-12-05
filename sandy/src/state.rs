@@ -145,6 +145,39 @@ pub fn save_default_template_hash(hash: &str) -> Result<()> {
     Ok(())
 }
 
+/// Get the template digest file path (stores the Docker image digest after build)
+pub fn template_digest_path() -> Result<PathBuf> {
+    Ok(Config::config_dir()?.join("sandy-template.digest"))
+}
+
+/// Load the stored template digest
+pub fn load_template_digest() -> Result<Option<String>> {
+    let path = template_digest_path()?;
+    if path.exists() {
+        let digest = fs::read_to_string(&path)
+            .with_context(|| format!("Failed to read template digest: {}", path.display()))?;
+        Ok(Some(digest.trim().to_string()))
+    } else {
+        Ok(None)
+    }
+}
+
+/// Save the template digest
+pub fn save_template_digest(digest: &str) -> Result<()> {
+    let path = template_digest_path()?;
+    let dir = path.parent().unwrap();
+
+    if !dir.exists() {
+        fs::create_dir_all(dir)
+            .with_context(|| format!("Failed to create directory: {}", dir.display()))?;
+    }
+
+    fs::write(&path, digest)
+        .with_context(|| format!("Failed to write template digest: {}", path.display()))?;
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
