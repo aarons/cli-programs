@@ -6,7 +6,7 @@ A CLI tool for managing Claude Code development environments using Docker contai
 
 `sandy` creates isolated development environments by combining:
 - **Docker containers**: Containerized Claude Code environments with `--dangerously-skip-permissions`
-- **Host credential passthrough**: Uses your existing Claude subscription seamlessly
+- **Persistent credentials**: Claude auth persists across sandboxes via Docker's managed volume
 
 This enables fully autonomous Claude work in isolated environments while sharing your authentication and configuration.
 
@@ -163,7 +163,12 @@ The default template includes:
 
 ### Authentication
 
-The CLI mounts `~/.claude` into the container, sharing your Claude authentication. Combined with `--credentials=host`, this uses your existing subscription seamlessly.
+Sandy uses `--credentials=sandbox` which stores Claude authentication in a persistent Docker volume (`docker-claude-sandbox-data`). This means:
+- First sandbox prompts for authentication once
+- All subsequent sandboxes automatically use the stored credentials
+- Credentials persist across sandbox restarts and deletion
+
+The `~/.claude` directory is also mounted for custom settings and configuration.
 
 ### Container Lifecycle
 
