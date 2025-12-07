@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.5.0] - 2025-12-05
+
+### Changed
+- Switched from `--credentials=host` to `--credentials=sandbox` for Docker sandbox credential management
+- Claude authentication now persists in Docker's managed volume, shared across all sandboxes
+- First-time users authenticate once; subsequent sandboxes automatically use stored credentials
+- JAVA_HOME now uses architecture-detected symlink (`/usr/lib/jvm/java-17`) instead of `/usr/lib/jvm/default-java`
+
 ## [1.4.0] - 2025-12-04
 
 ### Fixed

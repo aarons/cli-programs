@@ -440,8 +440,8 @@ pub fn start_sandbox(workspace: &Path, config: &Config) -> Result<()> {
         cmd.args(["--template", template]);
     }
 
-    // Use host credentials for authentication
-    cmd.args(["--credentials=host"]);
+    // Use sandbox credentials - auth persists across sandboxes in Docker volume
+    cmd.args(["--credentials=sandbox"]);
 
     // Name the container for tracking
     let container_name = get_container_name(workspace);
