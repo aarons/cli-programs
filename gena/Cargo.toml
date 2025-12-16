@@ -1,0 +1,17 @@
+[package]
+name = "gena"
+version = "0.1.0"
+edition = "2024"
+description = "Convert EPUB files to audio using text-to-speech"
+
+[dependencies]
+clap = { workspace = true }
+anyhow = { workspace = true }
+serde = { workspace = true }
+toml = { workspace = true }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "process", "fs", "io-util"] }
+async-trait = "0.1"
+epub = "2.1"
+html2text = "0.12"
+indicatif = "0.17"
+tempfile = "3"
