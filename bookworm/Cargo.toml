@@ -16,3 +16,4 @@ anyhow = { workspace = true }
 llm-client = { path = "../llm-client" }
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 walkdir = "2"
+epub = "2.1"

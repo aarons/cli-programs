@@ -6,7 +6,8 @@
       "WebFetch(domain:docs.rs)",
       "WebFetch(domain:raw.githubusercontent.com)",
       "WebFetch(domain:github.com)",
-      "WebFetch(domain:docs.docker.com)"
+      "WebFetch(domain:docs.docker.com)",
+      "WebFetch(domain:docs.vast.ai)"
     ],
     "deny": [
       "Bash(rm -rf :*)",

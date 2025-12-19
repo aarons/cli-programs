@@ -28,3 +28,5 @@
 # Logs directory
 /logs/
 /logs/*
+
+bookworm/assets/

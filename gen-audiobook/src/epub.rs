@@ -8,8 +8,6 @@ use std::path::Path;
 pub struct Chapter {
     /// Chapter title (if available)
     pub title: Option<String>,
-    /// Chapter number (0-indexed)
-    pub number: usize,
     /// Plain text content
     pub content: String,
 }
@@ -23,14 +21,11 @@ pub struct Book {
     pub author: Option<String>,
     /// Chapters in reading order
     pub chapters: Vec<Chapter>,
+    /// Cover image data (if available)
+    pub cover_image: Option<Vec<u8>>,
 }
 
 impl Book {
-    /// Total character count across all chapters
-    pub fn total_chars(&self) -> usize {
-        self.chapters.iter().map(|c| c.content.len()).sum()
-    }
-
     /// Total word count across all chapters (approximate)
     pub fn total_words(&self) -> usize {
         self.chapters
@@ -53,10 +48,13 @@ pub fn parse_epub(path: &Path) -> Result<Book> {
 
     let author = doc.mdata("creator").map(|m| m.value.clone());
 
+    // Extract cover image
+    let cover_image = extract_cover_image(&mut doc);
+
     let mut chapters = Vec::new();
     let spine = doc.spine.clone();
 
-    for (idx, spine_item) in spine.iter().enumerate() {
+    for spine_item in spine.iter() {
         // Get the resource content using the idref
         if let Some((content_bytes, _mime)) = doc.get_resource(&spine_item.idref) {
             let html = String::from_utf8_lossy(&content_bytes).to_string();
@@ -74,7 +72,6 @@ pub fn parse_epub(path: &Path) -> Result<Book> {
 
             chapters.push(Chapter {
                 title: chapter_title,
-                number: idx,
                 content: plain_text,
             });
         }
@@ -84,7 +81,25 @@ pub fn parse_epub(path: &Path) -> Result<Book> {
         title,
         author,
         chapters,
+        cover_image,
     })
+}
+
+/// Extract cover image from EPUB document
+fn extract_cover_image(doc: &mut epub::doc::EpubDoc<std::io::BufReader<std::fs::File>>) -> Option<Vec<u8>> {
+    // Try the get_cover() method first (standard EPUB cover)
+    if let Some((cover_bytes, _mime)) = doc.get_cover() {
+        return Some(cover_bytes);
+    }
+
+    // Fallback: look for cover in metadata
+    if let Some(cover_id) = doc.mdata("cover").map(|m| m.value.clone()) {
+        if let Some((cover_bytes, _mime)) = doc.get_resource(&cover_id) {
+            return Some(cover_bytes);
+        }
+    }
+
+    None
 }
 
 /// Extract title from HTML content (looks for h1, h2, or title tags)
