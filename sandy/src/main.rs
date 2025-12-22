@@ -11,9 +11,10 @@ use std::path::PathBuf;
 
 use config::Config;
 use docker::{
-    DefaultTemplateStatus, build_template, build_template_no_cache, check_default_template_status,
-    check_docker, check_docker_sandbox, remove_sandbox, start_sandbox, template_exists,
-    template_needs_rebuild, update_dockerfile_from_default,
+    DefaultTemplateStatus, backup_dockerfile, build_template, build_template_no_cache,
+    check_default_template_status, check_docker, check_docker_sandbox, new_default_available,
+    remove_sandbox, start_sandbox, template_exists, template_needs_rebuild,
+    update_dockerfile_from_default,
 };
 use interactive::{confirm, display_sandbox_list, get_sandbox_entries, prompt_selection};
 use state::State;
@@ -44,6 +45,12 @@ enum Commands {
     /// Build or rebuild the sandbox template image
     Build {
         /// Force a complete rebuild, ignoring Docker's build cache
+        #[arg(long, short)]
+        force: bool,
+    },
+    /// Update the Dockerfile template to the latest embedded default
+    Update {
+        /// Force update even if Dockerfile has been customized (creates backup)
         #[arg(long, short)]
         force: bool,
     },
@@ -85,6 +92,7 @@ fn main() -> Result<()> {
         Some(Commands::List) => cmd_list(),
         Some(Commands::Remove) => cmd_remove(),
         Some(Commands::Build { force }) => cmd_build(force),
+        Some(Commands::Update { force }) => cmd_update(force),
         Some(Commands::Config { action }) => cmd_config(action),
         None => cmd_interactive(),
     }
@@ -312,14 +320,39 @@ fn cmd_build(force: bool) -> Result<()> {
         .unwrap_or_else(|| DEFAULT_TEMPLATE_IMAGE.to_string());
     let template_dockerfile = get_template_dockerfile()?;
 
-    // Ensure Dockerfile exists
-    if !template_dockerfile.exists() {
-        println!("Creating default Dockerfile...");
-        update_dockerfile_from_default(&template_dockerfile, DEFAULT_DOCKERFILE)?;
-        println!(
-            "Created default Dockerfile at: {}",
-            template_dockerfile.display()
-        );
+    // Check template status and handle updates
+    let template_status = check_default_template_status(&template_dockerfile, DEFAULT_DOCKERFILE)?;
+
+    match template_status {
+        DefaultTemplateStatus::NeedsCreation => {
+            println!("Creating default Dockerfile...");
+            update_dockerfile_from_default(&template_dockerfile, DEFAULT_DOCKERFILE)?;
+            println!(
+                "Created default Dockerfile at: {}",
+                template_dockerfile.display()
+            );
+        }
+        DefaultTemplateStatus::NeedsUpdate => {
+            println!("Updating Dockerfile to latest default...");
+            update_dockerfile_from_default(&template_dockerfile, DEFAULT_DOCKERFILE)?;
+            println!("Updated Dockerfile at: {}", template_dockerfile.display());
+        }
+        DefaultTemplateStatus::UpToDate => {
+            // Nothing to do, Dockerfile is current
+        }
+        DefaultTemplateStatus::Customized => {
+            // Check if new default is available and warn
+            if new_default_available(DEFAULT_DOCKERFILE)? {
+                println!("Note: A new default Dockerfile template is available.");
+                println!(
+                    "Your Dockerfile has been customized, so it was not updated automatically."
+                );
+                println!(
+                    "Run 'sandy update --force' to update (your current file will be backed up)."
+                );
+                println!();
+            }
+        }
     }
 
     // Build the template
@@ -335,6 +368,47 @@ fn cmd_build(force: bool) -> Result<()> {
     if config.template_image.is_none() {
         config.template_image = Some(template_name);
         config.save()?;
+    }
+
+    Ok(())
+}
+
+fn cmd_update(force: bool) -> Result<()> {
+    let template_dockerfile = get_template_dockerfile()?;
+    let template_status = check_default_template_status(&template_dockerfile, DEFAULT_DOCKERFILE)?;
+
+    match template_status {
+        DefaultTemplateStatus::NeedsCreation => {
+            println!("Creating default Dockerfile...");
+            update_dockerfile_from_default(&template_dockerfile, DEFAULT_DOCKERFILE)?;
+            println!(
+                "Created default Dockerfile at: {}",
+                template_dockerfile.display()
+            );
+        }
+        DefaultTemplateStatus::NeedsUpdate => {
+            println!("Updating Dockerfile to latest default...");
+            update_dockerfile_from_default(&template_dockerfile, DEFAULT_DOCKERFILE)?;
+            println!("Updated Dockerfile at: {}", template_dockerfile.display());
+        }
+        DefaultTemplateStatus::UpToDate => {
+            println!("Dockerfile is already up to date.");
+        }
+        DefaultTemplateStatus::Customized => {
+            if force {
+                let backup_path = backup_dockerfile(&template_dockerfile)?;
+                println!("Backed up customized Dockerfile to: {}", backup_path.display());
+                update_dockerfile_from_default(&template_dockerfile, DEFAULT_DOCKERFILE)?;
+                println!("Updated Dockerfile to latest default.");
+            } else {
+                println!("Your Dockerfile has been customized and differs from the default.");
+                println!();
+                println!(
+                    "To update to the latest default template, run: sandy update --force"
+                );
+                println!("This will back up your current Dockerfile before updating.");
+            }
+        }
     }
 
     Ok(())
