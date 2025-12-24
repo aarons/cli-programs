@@ -1,8 +1,9 @@
 use anyhow::{Context, Result, bail};
+use chrono::Local;
 use sha2::{Digest, Sha256};
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 use crate::config::Config;
@@ -241,6 +242,35 @@ pub fn update_dockerfile_from_default(
     save_default_template_hash(&default_hash)?;
 
     Ok(())
+}
+
+/// Create a backup of the user's Dockerfile with a date-stamped name
+pub fn backup_dockerfile(dockerfile_path: &Path) -> Result<PathBuf> {
+    let date = Local::now().format("%Y-%m-%d").to_string();
+    let backup_name = format!("Dockerfile.{}.backup", date);
+    let backup_path = dockerfile_path
+        .parent()
+        .context("Invalid dockerfile path")?
+        .join(&backup_name);
+
+    fs::copy(dockerfile_path, &backup_path)
+        .with_context(|| format!("Failed to create backup at {}", backup_path.display()))?;
+
+    Ok(backup_path)
+}
+
+/// Check if a new embedded default template is available
+///
+/// This is used to warn users with customized Dockerfiles that a new default is available.
+/// Returns true if the stored default hash differs from the current embedded default.
+pub fn new_default_available(default_template: &str) -> Result<bool> {
+    let stored_hash = load_default_template_hash()?;
+    let current_hash = hash_content(default_template)?;
+
+    match stored_hash {
+        Some(stored) => Ok(stored != current_hash),
+        None => Ok(false), // Can't determine, assume no update available
+    }
 }
 
 /// Prepare template assets by copying binaries from configured directories
