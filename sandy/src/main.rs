@@ -34,7 +34,11 @@ struct Cli {
 #[derive(Subcommand)]
 enum Commands {
     /// Create a new sandbox for the current repository
-    New,
+    New {
+        /// CLI tool to run (claude, gemini, codex). Defaults to config value.
+        #[arg(long, short)]
+        tool: Option<String>,
+    },
     /// Resume an existing sandbox (interactive selection)
     Resume,
     /// List all sandbox environments
@@ -80,7 +84,7 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Some(Commands::New) => cmd_new(),
+        Some(Commands::New { tool }) => cmd_new(tool),
         Some(Commands::Resume) => cmd_resume(),
         Some(Commands::List) => cmd_list(),
         Some(Commands::Remove) => cmd_remove(),
@@ -114,7 +118,7 @@ fn cmd_interactive() -> Result<()> {
 
         match input {
             "1" | "new" | "n" => {
-                return cmd_new();
+                return cmd_new(None);
             }
             "2" | "resume" | "r" => {
                 return cmd_resume();
@@ -140,7 +144,7 @@ fn cmd_interactive() -> Result<()> {
     }
 }
 
-fn cmd_new() -> Result<()> {
+fn cmd_new(tool_override: Option<String>) -> Result<()> {
     // Check Docker availability
     check_docker()?;
     check_docker_sandbox()?;
@@ -148,6 +152,9 @@ fn cmd_new() -> Result<()> {
     // Load configuration
     let mut config = Config::load()?;
     let mut state = State::load()?;
+
+    // Resolve tool: flag overrides config default
+    let tool = tool_override.unwrap_or_else(|| config.default_tool.clone());
 
     // Get current repository
     let cwd = env::current_dir().context("Failed to get current directory")?;
@@ -208,14 +215,14 @@ fn cmd_new() -> Result<()> {
         config.save()?;
     }
 
-    // Save state
-    state.add_sandbox(repo_path.clone());
+    // Save state with tool info
+    state.add_sandbox(repo_path.clone(), &tool);
     state.save()?;
 
-    println!("Starting sandbox for '{}'...", repo_name);
+    println!("Starting sandbox for '{}' with {}...", repo_name, tool);
 
     // Start the sandbox in the repo directory
-    start_sandbox(&repo_path, &config)?;
+    start_sandbox(&repo_path, &config, &tool)?;
 
     Ok(())
 }
@@ -234,8 +241,10 @@ fn cmd_resume() -> Result<()> {
         let repo_key = repo_path.to_string_lossy().to_string();
         if let Some(info) = state.sandboxes.get(&repo_key) {
             let repo_name = get_repo_name(&info.path);
-            println!("Resuming sandbox '{}'...", repo_name);
-            start_sandbox(&info.path, &config)?;
+            // Use stored tool, or fall back to config default for legacy sandboxes
+            let tool = info.tool.clone().unwrap_or_else(|| config.default_tool.clone());
+            println!("Resuming sandbox '{}' with {}...", repo_name, tool);
+            start_sandbox(&info.path, &config, &tool)?;
             return Ok(());
         }
     }
@@ -252,9 +261,12 @@ fn cmd_resume() -> Result<()> {
         None => return Ok(()),
     };
 
+    // Use stored tool, or fall back to config default for legacy sandboxes
+    let tool = entry.info.tool.clone().unwrap_or_else(|| config.default_tool.clone());
+
     // Docker Sandbox handles reconnection automatically - just call run again
-    println!("Resuming sandbox '{}'...", entry.name);
-    start_sandbox(&entry.info.path, &config)?;
+    println!("Resuming sandbox '{}' with {}...", entry.name, tool);
+    start_sandbox(&entry.info.path, &config, &tool)?;
 
     Ok(())
 }

@@ -18,6 +18,7 @@ RUN sudo apt-get update && sudo apt-get install -y \
     libgtk-3-dev \
     libayatana-appindicator3-dev \
     librsvg2-dev \
+    sqlite3 \
     && sudo rm -rf /var/lib/apt/lists/*
 
 # Additional Rust tools

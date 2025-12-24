@@ -124,6 +124,7 @@ mod tests {
                 SandboxInfo {
                     path,
                     created_at: Utc::now() - chrono::Duration::hours(i as i64),
+                    tool: Some("claude".to_string()),
                 },
             );
         }
@@ -138,6 +139,7 @@ mod tests {
             info: SandboxInfo {
                 path: PathBuf::from("/test/repo"),
                 created_at: Utc::now(),
+                tool: Some("claude".to_string()),
             },
             status: SandboxStatus::Running,
         };
@@ -175,7 +177,7 @@ mod tests {
     #[test]
     fn test_get_sandbox_entries_single() {
         let mut state = State::default();
-        state.add_sandbox(PathBuf::from("/test/my-repo"));
+        state.add_sandbox(PathBuf::from("/test/my-repo"), "claude");
 
         let entries = get_sandbox_entries(&state).unwrap();
 
@@ -205,6 +207,7 @@ mod tests {
             SandboxInfo {
                 path: PathBuf::from("/older"),
                 created_at: older_time,
+                tool: Some("claude".to_string()),
             },
         );
         state.sandboxes.insert(
@@ -212,6 +215,7 @@ mod tests {
             SandboxInfo {
                 path: PathBuf::from("/newer"),
                 created_at: newer_time,
+                tool: Some("gemini".to_string()),
             },
         );
 
@@ -225,7 +229,7 @@ mod tests {
     #[test]
     fn test_get_sandbox_entries_derives_name_from_path() {
         let mut state = State::default();
-        state.add_sandbox(PathBuf::from("/home/user/projects/awesome-project"));
+        state.add_sandbox(PathBuf::from("/home/user/projects/awesome-project"), "claude");
 
         let entries = get_sandbox_entries(&state).unwrap();
 
@@ -249,6 +253,7 @@ mod tests {
                 info: SandboxInfo {
                     path: PathBuf::from("/test/repo1"),
                     created_at: Utc::now(),
+                    tool: Some("claude".to_string()),
                 },
                 status: SandboxStatus::Running,
             },
@@ -258,6 +263,7 @@ mod tests {
                 info: SandboxInfo {
                     path: PathBuf::from("/test/repo2"),
                     created_at: Utc::now(),
+                    tool: Some("gemini".to_string()),
                 },
                 status: SandboxStatus::Stopped,
             },
@@ -280,6 +286,7 @@ mod tests {
                 info: SandboxInfo {
                     path: PathBuf::from("/test"),
                     created_at: Utc::now(),
+                    tool: Some("claude".to_string()),
                 },
                 status: status.clone(),
             };

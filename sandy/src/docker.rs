@@ -406,8 +406,19 @@ pub fn sandbox_status(workspace: &Path) -> Result<SandboxStatus> {
     }
 }
 
-/// Start a new sandbox with the given configuration
-pub fn start_sandbox(workspace: &Path, config: &Config) -> Result<()> {
+/// Get the command and arguments for a CLI tool
+fn get_tool_command(tool: &str) -> Vec<&str> {
+    match tool {
+        "claude" => vec!["claude", "--dangerously-skip-permissions"],
+        "gemini" => vec!["gemini"],
+        "codex" => vec!["codex"],
+        // Allow custom tool names - just use the name directly
+        _ => vec![],
+    }
+}
+
+/// Start a new sandbox with the given configuration and CLI tool
+pub fn start_sandbox(workspace: &Path, config: &Config, tool: &str) -> Result<()> {
     let mut cmd = Command::new("docker");
     cmd.args(["sandbox", "run"]);
 
@@ -450,8 +461,14 @@ pub fn start_sandbox(workspace: &Path, config: &Config) -> Result<()> {
     // Workspace
     cmd.args(["-w", &workspace.display().to_string()]);
 
-    // Agent and permissions
-    cmd.args(["claude", "--dangerously-skip-permissions"]);
+    // CLI tool command
+    let tool_cmd = get_tool_command(tool);
+    if tool_cmd.is_empty() {
+        // Custom tool - just use the name
+        cmd.arg(tool);
+    } else {
+        cmd.args(tool_cmd);
+    }
 
     println!("Starting sandbox for: {}", workspace.display());
 
