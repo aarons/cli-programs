@@ -13,6 +13,9 @@ pub struct SandboxInfo {
     pub path: PathBuf,
     /// When the sandbox was created
     pub created_at: DateTime<Utc>,
+    /// CLI tool used for this sandbox (claude, gemini, codex)
+    #[serde(default)]
+    pub tool: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -62,13 +65,14 @@ impl State {
     }
 
     /// Add a sandbox to the state (keyed by canonical repo path)
-    pub fn add_sandbox(&mut self, repo_path: PathBuf) {
+    pub fn add_sandbox(&mut self, repo_path: PathBuf, tool: &str) {
         let key = repo_path.to_string_lossy().to_string();
         self.sandboxes.insert(
             key,
             SandboxInfo {
                 path: repo_path,
                 created_at: Utc::now(),
+                tool: Some(tool.to_string()),
             },
         );
     }
@@ -188,7 +192,7 @@ mod tests {
         let mut state = State::default();
         let path = PathBuf::from("/test/repo");
 
-        state.add_sandbox(path.clone());
+        state.add_sandbox(path.clone(), "claude");
 
         assert_eq!(state.sandboxes.len(), 1);
         let key = path.to_string_lossy().to_string();
@@ -196,6 +200,7 @@ mod tests {
 
         let info = state.sandboxes.get(&key).unwrap();
         assert_eq!(info.path, path);
+        assert_eq!(info.tool, Some("claude".to_string()));
     }
 
     #[test]
@@ -204,8 +209,8 @@ mod tests {
         let path1 = PathBuf::from("/test/repo1");
         let path2 = PathBuf::from("/test/repo2");
 
-        state.add_sandbox(path1.clone());
-        state.add_sandbox(path2.clone());
+        state.add_sandbox(path1.clone(), "claude");
+        state.add_sandbox(path2.clone(), "gemini");
 
         assert_eq!(state.sandboxes.len(), 2);
         assert!(
@@ -225,7 +230,7 @@ mod tests {
         let mut state = State::default();
         let path = PathBuf::from("/test/repo");
 
-        state.add_sandbox(path.clone());
+        state.add_sandbox(path.clone(), "claude");
         let first_time = state
             .sandboxes
             .get(&path.to_string_lossy().to_string())
@@ -235,15 +240,15 @@ mod tests {
         // Small delay to ensure different timestamp
         std::thread::sleep(std::time::Duration::from_millis(10));
 
-        state.add_sandbox(path.clone());
-        let second_time = state
+        state.add_sandbox(path.clone(), "gemini");
+        let info = state
             .sandboxes
             .get(&path.to_string_lossy().to_string())
-            .unwrap()
-            .created_at;
+            .unwrap();
 
         assert_eq!(state.sandboxes.len(), 1);
-        assert!(second_time > first_time);
+        assert!(info.created_at > first_time);
+        assert_eq!(info.tool, Some("gemini".to_string()));
     }
 
     #[test]
@@ -251,7 +256,7 @@ mod tests {
         let mut state = State::default();
         let path = PathBuf::from("/test/repo");
 
-        state.add_sandbox(path.clone());
+        state.add_sandbox(path.clone(), "claude");
         assert_eq!(state.sandboxes.len(), 1);
 
         let removed = state.remove_sandbox(&path.to_string_lossy().to_string());
@@ -272,6 +277,7 @@ mod tests {
         let info = SandboxInfo {
             path: PathBuf::from("/test/path"),
             created_at: Utc::now(),
+            tool: Some("gemini".to_string()),
         };
 
         let serialized = serde_json::to_string(&info).unwrap();
@@ -279,13 +285,14 @@ mod tests {
 
         assert_eq!(deserialized.path, info.path);
         assert_eq!(deserialized.created_at, info.created_at);
+        assert_eq!(deserialized.tool, info.tool);
     }
 
     #[test]
     fn test_state_serialization_roundtrip() {
         let mut state = State::default();
-        state.add_sandbox(PathBuf::from("/repo1"));
-        state.add_sandbox(PathBuf::from("/repo2"));
+        state.add_sandbox(PathBuf::from("/repo1"), "claude");
+        state.add_sandbox(PathBuf::from("/repo2"), "gemini");
 
         let serialized = serde_json::to_string_pretty(&state).unwrap();
         let deserialized: State = serde_json::from_str(&serialized).unwrap();
@@ -294,6 +301,7 @@ mod tests {
         for (key, info) in &state.sandboxes {
             let other = deserialized.sandboxes.get(key).unwrap();
             assert_eq!(other.path, info.path);
+            assert_eq!(other.tool, info.tool);
         }
     }
 
@@ -304,7 +312,7 @@ mod tests {
 
         // Create and save state
         let mut state = State::default();
-        state.add_sandbox(PathBuf::from("/test/repo"));
+        state.add_sandbox(PathBuf::from("/test/repo"), "claude");
 
         let content = serde_json::to_string_pretty(&state).unwrap();
         fs::write(&state_path, &content).unwrap();
@@ -315,6 +323,10 @@ mod tests {
 
         assert_eq!(loaded_state.sandboxes.len(), 1);
         assert!(loaded_state.sandboxes.contains_key("/test/repo"));
+        assert_eq!(
+            loaded_state.sandboxes.get("/test/repo").unwrap().tool,
+            Some("claude".to_string())
+        );
     }
 
     #[test]
@@ -322,7 +334,7 @@ mod tests {
         let mut state = State::default();
         let path = PathBuf::from("/test/repo with spaces/and-dashes_underscores");
 
-        state.add_sandbox(path.clone());
+        state.add_sandbox(path.clone(), "claude");
 
         let serialized = serde_json::to_string(&state).unwrap();
         let deserialized: State = serde_json::from_str(&serialized).unwrap();
@@ -336,7 +348,7 @@ mod tests {
     fn test_sandbox_info_created_at_is_current() {
         let before = Utc::now();
         let mut state = State::default();
-        state.add_sandbox(PathBuf::from("/test"));
+        state.add_sandbox(PathBuf::from("/test"), "claude");
         let after = Utc::now();
 
         let info = state.sandboxes.get("/test").unwrap();
@@ -384,5 +396,25 @@ mod tests {
             .expect("Should ignore unknown fields for forward compatibility");
 
         assert_eq!(state.sandboxes.len(), 1);
+    }
+
+    #[test]
+    fn test_backwards_compat_state_without_tool_field() {
+        // State files created before tool field was added should load with tool=None
+        let legacy_json = r#"{
+            "sandboxes": {
+                "/test/repo": {
+                    "path": "/test/repo",
+                    "created_at": "2024-01-01T00:00:00Z"
+                }
+            }
+        }"#;
+
+        let state: State = serde_json::from_str(legacy_json)
+            .expect("Should parse state file without tool field");
+
+        assert_eq!(state.sandboxes.len(), 1);
+        let info = state.sandboxes.get("/test/repo").unwrap();
+        assert_eq!(info.tool, None);
     }
 }

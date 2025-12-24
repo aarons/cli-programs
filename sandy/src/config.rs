@@ -22,6 +22,10 @@ pub struct Config {
     #[serde(default = "default_binary_dirs")]
     pub binary_dirs: Vec<String>,
 
+    /// Default CLI tool to run in sandboxes (claude, gemini, codex)
+    #[serde(default = "default_tool")]
+    pub default_tool: String,
+
     /// Environment variables to pass to containers
     #[serde(default)]
     pub env: HashMap<String, String>,
@@ -35,11 +39,16 @@ fn default_binary_dirs() -> Vec<String> {
     vec!["~/.local/bin".to_string()]
 }
 
+fn default_tool() -> String {
+    "claude".to_string()
+}
+
 impl Default for Config {
     fn default() -> Self {
         Self {
             template_image: None,
             binary_dirs: default_binary_dirs(),
+            default_tool: default_tool(),
             env: HashMap::new(),
             mounts: vec![
                 Mount {
@@ -141,6 +150,7 @@ mod tests {
 
         assert!(config.template_image.is_none());
         assert_eq!(config.binary_dirs, vec!["~/.local/bin".to_string()]);
+        assert_eq!(config.default_tool, "claude");
         assert!(config.env.is_empty());
         assert_eq!(config.mounts.len(), 3);
 
