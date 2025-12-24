@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.0] - 2025-12-22
+
+### Added
+- `sandy update` command to manually update Dockerfile to latest default template
+- `--force` flag to override customized Dockerfiles (creates date-stamped backup)
+- Auto-detection during build when a new default Dockerfile template is available
+
 ## [1.5.0] - 2025-12-05
 
 ### Changed
