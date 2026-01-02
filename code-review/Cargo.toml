@@ -1,0 +1,13 @@
+[package]
+name = "code-review"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "code-review"
+path = "src/main.rs"
+
+[dependencies]
+clap = { workspace = true }
+anyhow = { workspace = true }
+chrono = { workspace = true }
