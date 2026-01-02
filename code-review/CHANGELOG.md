@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.0] - 2026-01-01
+
+### Added
+- Support for custom review instructions via positional argument (e.g., `code-review "Focus on security"`)
+
 ## [0.1.0] - 2026-01-01
 
 ### Added
