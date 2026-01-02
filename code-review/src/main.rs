@@ -15,11 +15,14 @@ EXAMPLES:
     # Auto-detect mode based on uncommitted changes
     code-review
 
+    # Provide custom review instructions
+    code-review "Focus on security vulnerabilities"
+
     # Force review of uncommitted changes only
     code-review --uncommitted
 
-    # Review a specific commit
-    code-review --commit abc123
+    # Review a specific commit with custom prompt
+    code-review --commit abc123 "Check for breaking changes"
 "#;
 
 #[derive(Parser, Debug)]
@@ -28,6 +31,10 @@ EXAMPLES:
 #[command(version)]
 #[command(after_help = EXAMPLES)]
 struct Args {
+    /// Custom review instructions
+    #[arg(value_name = "PROMPT")]
+    prompt: Option<String>,
+
     /// Review only uncommitted changes (staged, unstaged, untracked)
     #[arg(long)]
     uncommitted: bool,
@@ -98,8 +105,8 @@ fn determine_mode(args: &Args) -> Result<ReviewMode> {
     Ok(ReviewMode::Committed)
 }
 
-fn run_codex(mode: &ReviewMode, main_branch: &str) -> Result<String> {
-    let args: Vec<&str> = match mode {
+fn run_codex(mode: &ReviewMode, main_branch: &str, prompt: Option<&str>) -> Result<String> {
+    let mut args: Vec<&str> = match mode {
         ReviewMode::Uncommitted => {
             vec!["review", "--uncommitted"]
         }
@@ -110,6 +117,10 @@ fn run_codex(mode: &ReviewMode, main_branch: &str) -> Result<String> {
             vec!["review", "--commit", sha]
         }
     };
+
+    if let Some(p) = prompt {
+        args.push(p);
+    }
 
     eprintln!("Running: codex {}", args.join(" "));
 
@@ -186,7 +197,7 @@ fn main() -> Result<()> {
     let main_branch = get_main_branch()?;
 
     // Run codex review
-    let output = run_codex(&mode, &main_branch)?;
+    let output = run_codex(&mode, &main_branch, args.prompt.as_deref())?;
 
     // Parse output
     match parse_codex_output(&output) {
