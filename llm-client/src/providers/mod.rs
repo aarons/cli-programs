@@ -59,18 +59,24 @@ pub fn get_provider(
             Ok(Box::new(ClaudeCliProvider::new(&preset.model, cli_path)?))
         }
         ProviderKind::Anthropic => {
-            let api_key = get_api_key(provider_config, "ANTHROPIC_API_KEY", "Anthropic")?;
+            let default_env = "ANTHROPIC_API_KEY";
+            let env_var = preset.api_key_env.as_deref().unwrap_or(default_env);
+            let api_key = get_api_key(provider_config, env_var, "Anthropic")?;
             Ok(Box::new(AnthropicProvider::new(&preset.model, api_key)?))
         }
         ProviderKind::OpenRouter => {
-            let api_key = get_api_key(provider_config, "OPENROUTER_API_KEY", "OpenRouter")?;
+            let default_env = "OPENROUTER_API_KEY";
+            let env_var = preset.api_key_env.as_deref().unwrap_or(default_env);
+            let api_key = get_api_key(provider_config, env_var, "OpenRouter")?;
             Ok(Box::new(OpenAICompatibleProvider::openrouter(
                 &preset.model,
                 api_key,
             )?))
         }
         ProviderKind::Cerebras => {
-            let api_key = get_api_key(provider_config, "CEREBRAS_API_KEY", "Cerebras")?;
+            let default_env = "CEREBRAS_API_KEY";
+            let env_var = preset.api_key_env.as_deref().unwrap_or(default_env);
+            let api_key = get_api_key(provider_config, env_var, "Cerebras")?;
             Ok(Box::new(OpenAICompatibleProvider::cerebras(
                 &preset.model,
                 api_key,

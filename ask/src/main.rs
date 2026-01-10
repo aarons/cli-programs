@@ -130,6 +130,8 @@ fn handle_config_command(action: &ConfigAction) -> Result<()> {
                 ModelPreset {
                     provider: provider.clone(),
                     model: model.clone(),
+                    fallback: None,
+                    api_key_env: None,
                 },
             );
             config.save()?;

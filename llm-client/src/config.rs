@@ -36,6 +36,15 @@ pub struct ModelPreset {
 
     /// Model name/identifier for the provider
     pub model: String,
+
+    /// Optional fallback preset name to try if this one fails
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fallback: Option<String>,
+
+    /// Optional override for the API key environment variable
+    /// If not set, uses the provider's default env var
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub api_key_env: Option<String>,
 }
 
 /// Provider-specific configuration
@@ -122,6 +131,8 @@ impl Default for Config {
             ModelPreset {
                 provider: "claude-cli".to_string(),
                 model: "sonnet".to_string(),
+                fallback: None,
+                api_key_env: None,
             },
         );
 
