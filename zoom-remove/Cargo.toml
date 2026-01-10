@@ -1,0 +1,10 @@
+[package]
+name = "zoom-remove"
+version = "0.1.0"
+edition = "2024"
+description = "Remove Zoom's unauthorized updater services from macOS LaunchAgents"
+
+[dependencies]
+clap = { workspace = true }
+anyhow = { workspace = true }
+dirs = "5.0"
