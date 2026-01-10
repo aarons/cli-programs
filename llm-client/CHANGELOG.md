@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.4.0] - TBD
+
+### Added
+- LM Studio provider for local LLM inference via OpenAI-compatible API (default endpoint: http://127.0.0.1:1234/v1)
+
 ## [0.3.0] - 2025-11-30
 
 ### Added
