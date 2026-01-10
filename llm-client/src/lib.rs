@@ -8,10 +8,12 @@
 
 pub mod config;
 pub mod error;
+pub mod fallback;
 pub mod provider;
 pub mod providers;
 
 pub use config::{Config, ModelPreset, ProviderConfig};
 pub use error::{LlmError, Result};
+pub use fallback::{FallbackProvider, get_provider_with_fallback};
 pub use provider::{LlmProvider, LlmRequest, LlmResponse, TokenUsage};
 pub use providers::{MockProvider, ProviderKind, get_provider};
