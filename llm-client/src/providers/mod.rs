@@ -21,6 +21,7 @@ pub enum ProviderKind {
     Anthropic,
     OpenRouter,
     Cerebras,
+    LmStudio,
 }
 
 impl ProviderKind {
@@ -31,6 +32,7 @@ impl ProviderKind {
             "anthropic" => Ok(Self::Anthropic),
             "openrouter" => Ok(Self::OpenRouter),
             "cerebras" => Ok(Self::Cerebras),
+            "lm-studio" | "lm_studio" | "lmstudio" => Ok(Self::LmStudio),
             _ => Err(LlmError::ConfigError(format!("Unknown provider: {}", s))),
         }
     }
@@ -42,6 +44,7 @@ impl ProviderKind {
             Self::Anthropic => Some("ANTHROPIC_API_KEY"),
             Self::OpenRouter => Some("OPENROUTER_API_KEY"),
             Self::Cerebras => Some("CEREBRAS_API_KEY"),
+            Self::LmStudio => None,
         }
     }
 }
@@ -80,6 +83,13 @@ pub fn get_provider(
             Ok(Box::new(OpenAICompatibleProvider::cerebras(
                 &preset.model,
                 api_key,
+            )?))
+        }
+        ProviderKind::LmStudio => {
+            let base_url = provider_config.and_then(|c| c.base_url.as_deref());
+            Ok(Box::new(OpenAICompatibleProvider::lm_studio(
+                &preset.model,
+                base_url,
             )?))
         }
     }

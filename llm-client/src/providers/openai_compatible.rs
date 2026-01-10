@@ -16,14 +16,19 @@ use crate::provider::{LlmProvider, LlmRequest, LlmResponse, TokenUsage};
 pub struct OpenAICompatibleProvider {
     model: String,
     base_url: String,
-    api_key: String,
+    api_key: Option<String>,
     name: &'static str,
     client: Client,
 }
 
 impl OpenAICompatibleProvider {
     /// Create a new OpenAI-compatible provider
-    pub fn new(model: &str, base_url: &str, api_key: String, name: &'static str) -> Result<Self> {
+    pub fn new(
+        model: &str,
+        base_url: &str,
+        api_key: Option<String>,
+        name: &'static str,
+    ) -> Result<Self> {
         let client = Client::new();
 
         Ok(Self {
@@ -37,12 +42,28 @@ impl OpenAICompatibleProvider {
 
     /// Create an OpenRouter provider
     pub fn openrouter(model: &str, api_key: String) -> Result<Self> {
-        Self::new(model, "https://openrouter.ai/api/v1", api_key, "OpenRouter")
+        Self::new(
+            model,
+            "https://openrouter.ai/api/v1",
+            Some(api_key),
+            "OpenRouter",
+        )
     }
 
     /// Create a Cerebras provider
     pub fn cerebras(model: &str, api_key: String) -> Result<Self> {
-        Self::new(model, "https://api.cerebras.ai/v1", api_key, "Cerebras")
+        Self::new(
+            model,
+            "https://api.cerebras.ai/v1",
+            Some(api_key),
+            "Cerebras",
+        )
+    }
+
+    /// Create an LM Studio provider (local, no API key required)
+    pub fn lm_studio(model: &str, base_url: Option<&str>) -> Result<Self> {
+        let url = base_url.unwrap_or("http://127.0.0.1:1234/v1");
+        Self::new(model, url, None, "LM Studio")
     }
 }
 
@@ -116,11 +137,17 @@ impl LlmProvider for OpenAICompatibleProvider {
 
         let url = format!("{}/chat/completions", self.base_url);
 
-        let response = self
+        let mut request_builder = self
             .client
             .post(&url)
-            .header("Authorization", format!("Bearer {}", self.api_key))
-            .header("Content-Type", "application/json")
+            .header("Content-Type", "application/json");
+
+        // Only add Authorization header if API key is provided
+        if let Some(ref api_key) = self.api_key {
+            request_builder = request_builder.header("Authorization", format!("Bearer {}", api_key));
+        }
+
+        let response = request_builder
             .json(&chat_request)
             .send()
             .await
