@@ -30,6 +30,7 @@ pub fn generate_plist() -> Result<String> {
     <key>ProgramArguments</key>
     <array>
         <string>{binary}</string>
+        <string>now</string>
     </array>
     <key>StartInterval</key>
     <integer>3600</integer>
