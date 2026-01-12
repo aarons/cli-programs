@@ -10,6 +10,7 @@ This is a monorepo for command-line utilities written in Rust for Unix environme
 - ask - Claude CLI wrapper for shell commands and questions
 - gc - Automated git commit with AI-generated conventional commit messages using Claude CLI
 - git-clean - Interactive tool to clean up local and remote Git branches
+- transcribe - Audio to text transcription using whisper.cpp
 - update-cli-programs - Automated installer/updater for all workspace binaries to ~/.local/bin
 
 **Development/repository tools:**

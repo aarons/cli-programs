@@ -1,0 +1,13 @@
+[package]
+name = "transcribe"
+version = "0.1.0"
+edition = "2024"
+description = "Transcribe audio files to text using whisper.cpp"
+
+[dependencies]
+clap = { workspace = true }
+anyhow = { workspace = true }
+serde = { workspace = true }
+toml = { workspace = true }
+serde_json = { workspace = true }
+tempfile = "3"

@@ -7,6 +7,7 @@ Collection of command-line utilities written in Rust for Unix environments (macO
 - **[ask](ask/README.md)** - Helper for shell commands and general questions
 - **[gc](gc/README.md)** - Automated git commit messages using Claude Code CLI
 - **[git-clean](git-clean/README.md)** - Interactive tool to safely remove merged local and remote git branches
+- **[transcribe](transcribe/README.md)** - Audio to text transcription using whisper.cpp
 - **[update-cli-programs](update-cli-programs/README.md)** - Automated installer/updater for these CLI programs
 
 ### ask
@@ -66,6 +67,27 @@ Example usage:
 # Clean up merged branches
 git-clean
 ```
+
+---
+
+### transcribe
+
+Transcribe audio files to text using whisper.cpp. Automatically handles audio format conversion (sample rate, channels) for compatibility with whisper requirements.
+
+Example usage:
+
+```bash
+# Basic transcription
+transcribe recording.wav
+
+# Use the larger, more accurate model
+transcribe -m large-turbo recording.wav
+
+# Debug mode shows audio format info
+transcribe --debug recording.wav
+```
+
+Requires whisper.cpp and ffmpeg to be installed. Configure paths with `transcribe config set`.
 
 ---
 
