@@ -1,5 +1,5 @@
 [workspace]
-members = ["add-reminders", "ask", "bookworm", "code-review", "gc", "git-clean", "git-merge", "transcribe", "update-cli-programs", "changelog-validator", "llm-client", "sandy", "track-changes", "zoom-remove"]
+members = ["add-reminders", "ask", "bookworm", "code-review", "gc", "git-clean", "git-merge", "test-review", "transcribe", "update-cli-programs", "changelog-validator", "llm-client", "sandy", "track-changes", "zoom-remove"]
 resolver = "2"
 
 # Shared dependencies across all tools
