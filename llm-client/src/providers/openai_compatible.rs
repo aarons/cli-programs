@@ -3,14 +3,16 @@
 //! Used for providers that implement the OpenAI chat completions API:
 //! - OpenRouter
 //! - Cerebras
+//! - LM Studio (with multimodal support)
 //! - And others
 
 use async_trait::async_trait;
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 
 use crate::error::{LlmError, Result};
-use crate::provider::{LlmProvider, LlmRequest, LlmResponse, TokenUsage};
+use crate::provider::{FileAttachment, LlmProvider, LlmRequest, LlmResponse, TokenUsage};
 
 /// Provider for OpenAI-compatible APIs
 pub struct OpenAICompatibleProvider {
@@ -73,12 +75,61 @@ impl OpenAICompatibleProvider {
 struct ChatCompletionRequest {
     model: String,
     messages: Vec<Message>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    response_format: Option<ResponseFormat>,
+}
+
+/// Response format for structured output
+#[derive(Debug, Serialize)]
+struct ResponseFormat {
+    #[serde(rename = "type")]
+    format_type: String,
+    json_schema: JsonSchemaWrapper,
+}
+
+/// Wrapper for JSON schema in response_format
+#[derive(Debug, Serialize)]
+struct JsonSchemaWrapper {
+    name: String,
+    strict: bool,
+    schema: serde_json::Value,
 }
 
 #[derive(Debug, Serialize)]
 struct Message {
     role: String,
-    content: String,
+    content: MessageContent,
+}
+
+/// Message content - either a simple string or multimodal array
+#[derive(Debug, Serialize)]
+#[serde(untagged)]
+enum MessageContent {
+    Text(String),
+    Multimodal(Vec<ContentPart>),
+}
+
+/// A part of multimodal content
+#[derive(Debug, Serialize)]
+#[serde(tag = "type")]
+enum ContentPart {
+    #[serde(rename = "text")]
+    Text { text: String },
+    #[serde(rename = "image_url")]
+    ImageUrl { image_url: ImageUrl },
+    #[serde(rename = "input_audio")]
+    InputAudio { input_audio: InputAudioData },
+}
+
+#[derive(Debug, Serialize)]
+struct ImageUrl {
+    url: String,
+}
+
+#[derive(Debug, Serialize)]
+struct InputAudioData {
+    data: String,
+    format: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -113,6 +164,65 @@ struct ApiError {
     message: String,
 }
 
+/// Check if a MIME type is an audio type
+fn is_audio_mime_type(mime_type: &str) -> bool {
+    mime_type.starts_with("audio/")
+}
+
+/// Get the audio format string from MIME type (for OpenAI input_audio)
+fn audio_format_from_mime(mime_type: &str) -> &str {
+    match mime_type {
+        "audio/wav" | "audio/wave" | "audio/x-wav" => "wav",
+        "audio/mpeg" | "audio/mp3" => "mp3",
+        "audio/flac" => "flac",
+        "audio/ogg" => "ogg",
+        "audio/mp4" | "audio/m4a" => "m4a",
+        "audio/webm" => "webm",
+        // Default to wav for unknown audio types
+        _ => "wav",
+    }
+}
+
+/// Build message content, either as text or multimodal
+fn build_user_content(prompt: &str, files: &[FileAttachment]) -> MessageContent {
+    if files.is_empty() {
+        MessageContent::Text(prompt.to_string())
+    } else {
+        let mut parts = Vec::new();
+
+        // Add text prompt first
+        if !prompt.is_empty() {
+            parts.push(ContentPart::Text {
+                text: prompt.to_string(),
+            });
+        }
+
+        // Add file attachments with appropriate content type
+        for file in files {
+            let base64_data = BASE64.encode(&file.data);
+
+            if is_audio_mime_type(&file.mime_type) {
+                // Audio files use input_audio content type
+                let format = audio_format_from_mime(&file.mime_type);
+                parts.push(ContentPart::InputAudio {
+                    input_audio: InputAudioData {
+                        data: base64_data,
+                        format: format.to_string(),
+                    },
+                });
+            } else {
+                // Images and other files use image_url with data URL
+                let data_url = format!("data:{};base64,{}", file.mime_type, base64_data);
+                parts.push(ContentPart::ImageUrl {
+                    image_url: ImageUrl { url: data_url },
+                });
+            }
+        }
+
+        MessageContent::Multimodal(parts)
+    }
+}
+
 #[async_trait]
 impl LlmProvider for OpenAICompatibleProvider {
     async fn complete(&self, request: LlmRequest) -> Result<LlmResponse> {
@@ -121,18 +231,29 @@ impl LlmProvider for OpenAICompatibleProvider {
         if let Some(system) = &request.system_prompt {
             messages.push(Message {
                 role: "system".to_string(),
-                content: system.clone(),
+                content: MessageContent::Text(system.clone()),
             });
         }
 
         messages.push(Message {
             role: "user".to_string(),
-            content: request.prompt.clone(),
+            content: build_user_content(&request.prompt, &request.files),
+        });
+
+        // Build response_format if json_schema is provided
+        let response_format = request.json_schema.map(|schema| ResponseFormat {
+            format_type: "json_schema".to_string(),
+            json_schema: JsonSchemaWrapper {
+                name: "response".to_string(),
+                strict: true,
+                schema,
+            },
         });
 
         let chat_request = ChatCompletionRequest {
             model: self.model.clone(),
             messages,
+            response_format,
         };
 
         let url = format!("{}/chat/completions", self.base_url);

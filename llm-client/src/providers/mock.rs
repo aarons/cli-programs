@@ -147,6 +147,8 @@ mod tests {
             system_prompt: None,
             max_tokens: None,
             temperature: None,
+            files: vec![],
+            json_schema: None,
         };
 
         let result = provider.complete(request).await;
@@ -165,6 +167,8 @@ mod tests {
             system_prompt: None,
             max_tokens: None,
             temperature: None,
+            files: vec![],
+            json_schema: None,
         };
 
         for _ in 0..3 {
@@ -188,6 +192,8 @@ mod tests {
             system_prompt: None,
             max_tokens: None,
             temperature: None,
+            files: vec![],
+            json_schema: None,
         };
 
         // First two calls fail

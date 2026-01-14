@@ -1,6 +1,16 @@
 use async_trait::async_trait;
+use serde_json::Value;
 
 use crate::error::Result;
+
+/// A file attachment to include in the request
+#[derive(Debug, Clone)]
+pub struct FileAttachment {
+    /// Raw file data
+    pub data: Vec<u8>,
+    /// MIME type (e.g., "audio/wav", "image/png")
+    pub mime_type: String,
+}
 
 /// Request to send to an LLM provider
 #[derive(Debug, Clone)]
@@ -9,6 +19,10 @@ pub struct LlmRequest {
     pub system_prompt: Option<String>,
     pub max_tokens: Option<u32>,
     pub temperature: Option<f32>,
+    /// File attachments (for multimodal models)
+    pub files: Vec<FileAttachment>,
+    /// JSON schema for structured output (OpenAI-compatible providers)
+    pub json_schema: Option<Value>,
 }
 
 /// Response from an LLM provider

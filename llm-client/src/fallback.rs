@@ -293,6 +293,8 @@ mod tests {
             system_prompt: None,
             max_tokens: None,
             temperature: None,
+            files: vec![],
+            json_schema: None,
         };
 
         let result = provider.complete(request).await;
@@ -322,6 +324,8 @@ mod tests {
             system_prompt: None,
             max_tokens: None,
             temperature: None,
+            files: vec![],
+            json_schema: None,
         };
 
         let result = provider.complete(request).await;
@@ -354,6 +358,8 @@ mod tests {
             system_prompt: None,
             max_tokens: None,
             temperature: None,
+            files: vec![],
+            json_schema: None,
         };
 
         let result = provider.complete(request).await;

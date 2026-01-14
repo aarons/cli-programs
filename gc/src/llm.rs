@@ -54,6 +54,8 @@ impl LlmClient {
             system_prompt: Some(system_prompt.to_string()),
             max_tokens: None,
             temperature: None,
+            files: vec![],
+            json_schema: None,
         };
 
         if self.debug {

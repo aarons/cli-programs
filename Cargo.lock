@@ -105,6 +105,7 @@ dependencies = [
  "anyhow",
  "clap",
  "llm-client",
+ "serde_json",
  "tokio",
 ]
 
@@ -1031,6 +1032,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "base64",
  "reqwest",
  "serde",
  "serde_json",

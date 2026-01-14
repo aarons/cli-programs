@@ -12,6 +12,24 @@ This crate provides a unified interface for multiple LLM providers, allowing CLI
 - **Cerebras** - Fast Llama inference
 - **LM Studio** - Local models via OpenAI-compatible API
 
+## Provider Capabilities
+
+Not all providers support all features. Here's what each provider supports:
+
+| Provider | Text | Images | Audio |
+|----------|------|--------|-------|
+| Claude CLI | Yes | No | No |
+| Anthropic API | Yes | Yes (Claude 3+) | No |
+| OpenRouter | Yes | Model-dependent | Model-dependent |
+| Cerebras | Yes | No | No |
+| LM Studio | Yes | Vision models only | No |
+| OpenAI API | Yes | Yes | Yes (`gpt-4o-audio-preview`) |
+
+**Notes:**
+- LM Studio's MLX engine [does not yet support audio input](https://lmstudio.ai/blog/unified-mlx-engine)
+- Audio input uses OpenAI's `input_audio` content type format
+- For local audio processing, use a transcription tool and pipe the text instead
+
 ## Configuration
 
 Configuration is stored at `~/.config/cli-programs/llm.toml`:
@@ -77,6 +95,8 @@ async fn main() -> anyhow::Result<()> {
         system_prompt: Some("You are helpful.".to_string()),
         max_tokens: None,
         temperature: None,
+        files: vec![],
+        json_schema: None,
     };
 
     let response = provider.complete(request).await?;

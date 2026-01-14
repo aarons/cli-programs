@@ -15,5 +15,5 @@ pub mod providers;
 pub use config::{Config, ModelPreset, ProviderConfig};
 pub use error::{LlmError, Result};
 pub use fallback::{FallbackProvider, get_provider_with_fallback};
-pub use provider::{LlmProvider, LlmRequest, LlmResponse, TokenUsage};
+pub use provider::{FileAttachment, LlmProvider, LlmRequest, LlmResponse, TokenUsage};
 pub use providers::{MockProvider, ProviderKind, get_provider};

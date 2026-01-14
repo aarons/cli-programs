@@ -1,7 +1,7 @@
 mod llm;
 
 use anyhow::{Context, Result};
-use clap::{Parser, Subcommand};
+use clap::{CommandFactory, Parser, Subcommand};
 use llm::LlmClient;
 use llm_client::{Config, ModelPreset};
 use std::io::{self, BufRead, IsTerminal, Read, Write};
@@ -30,11 +30,19 @@ struct Args {
     #[arg(short, long)]
     model: Option<String>,
 
+    /// File(s) to include in the request (for multimodal models)
+    #[arg(short, long = "file", value_name = "PATH")]
+    files: Vec<PathBuf>,
+
+    /// JSON schema for structured output (file path or inline JSON)
+    #[arg(short, long, value_name = "FILE_OR_JSON")]
+    json: Option<String>,
+
     /// Configuration subcommand
     #[command(subcommand)]
     command: Option<Commands>,
 
-    /// The question to ask (if not provided, will prompt or read from stdin)
+    /// The question to ask (can also be piped via stdin)
     #[arg(trailing_var_arg = true)]
     question: Vec<String>,
 }
@@ -298,37 +306,51 @@ async fn main() -> Result<()> {
     // Get the question from args
     let question = args.question.join(" ");
 
-    // Check for piped input
+    // Check for piped input (ignore if empty/whitespace-only)
     let piped_input = if !io::stdin().is_terminal() {
         let mut buffer = String::new();
         io::stdin()
             .read_to_string(&mut buffer)
             .context("Failed to read piped input")?;
-        Some(buffer)
+        let trimmed = buffer.trim();
+        if trimmed.is_empty() {
+            None
+        } else {
+            Some(buffer)
+        }
     } else {
         None
     };
 
-    // If no question and no piped input, prompt for question
-    let question = if question.is_empty() && piped_input.is_none() {
-        prompt_for_question()?
-    } else {
-        question
-    };
+    // If no input provided, show help
+    if question.is_empty() && piped_input.is_none() && args.files.is_empty() {
+        Args::command().print_long_help()?;
+        return Ok(());
+    }
 
-    // Validate we have something to ask
-    if question.is_empty() && piped_input.is_none() {
-        anyhow::bail!("No question provided");
+    // Validate files exist
+    for file in &args.files {
+        if !file.exists() {
+            anyhow::bail!("File not found: {}", file.display());
+        }
     }
 
     // Initialize LLM client with selected preset
     let llm = LlmClient::new(args.model.as_deref(), args.debug)?;
 
+    // Parse JSON schema if provided
+    let json_schema = match &args.json {
+        Some(input) => Some(load_json_schema(input)?),
+        None => None,
+    };
+
     // Build the prompt and optional system prompt
     let (prompt, system_prompt) = build_prompt(&question, piped_input.as_deref(), args.general);
 
     // Call LLM
-    let response = llm.complete(&prompt, system_prompt).await?;
+    let response = llm
+        .complete(&prompt, system_prompt, &args.files, json_schema)
+        .await?;
 
     if response.is_empty() {
         anyhow::bail!("Empty response from LLM");
@@ -343,16 +365,6 @@ async fn main() -> Result<()> {
     }
 
     Ok(())
-}
-
-fn prompt_for_question() -> Result<String> {
-    eprint!("Please enter your question: ");
-    io::stderr().flush().ok();
-    let mut question = String::new();
-    io::stdin()
-        .read_line(&mut question)
-        .context("Failed to read question")?;
-    Ok(question.trim().to_string())
 }
 
 /// Build prompt and optional system prompt based on mode
@@ -399,4 +411,23 @@ fn copy_to_clipboard(text: &str) -> Result<()> {
     }
 
     Ok(())
+}
+
+/// Load JSON schema from a file path or parse inline JSON string.
+/// Auto-detects: if the string is a valid file path that exists, reads from file.
+/// Otherwise, attempts to parse as inline JSON.
+fn load_json_schema(input: &str) -> Result<serde_json::Value> {
+    let path = PathBuf::from(input);
+
+    // Check if it's a file path that exists
+    if path.exists() && path.is_file() {
+        let content = std::fs::read_to_string(&path)
+            .with_context(|| format!("Failed to read JSON schema file: {}", path.display()))?;
+        serde_json::from_str(&content)
+            .with_context(|| format!("Invalid JSON in schema file: {}", path.display()))
+    } else {
+        // Try to parse as inline JSON
+        serde_json::from_str(input)
+            .context("Invalid JSON schema: not a valid file path and failed to parse as JSON")
+    }
 }

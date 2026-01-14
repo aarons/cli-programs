@@ -55,6 +55,32 @@ ask --model claude-api how to compress a folder
 ask -g --model openrouter-sonnet explain async/await in rust
 ```
 
+### Multimodal File Input
+
+Use the `--file` flag to include images or audio files:
+
+```bash
+# Analyze an image
+ask -g --file screenshot.png "what's in this image?"
+
+# Multiple files
+ask -g --file diagram1.png --file diagram2.png "compare these diagrams"
+```
+
+**Provider Support:**
+
+| Content Type | Supported Providers |
+|--------------|---------------------|
+| Images | Vision-capable models (most providers) |
+| Audio | OpenAI `gpt-4o-audio-preview` only |
+
+LM Studio currently supports images (with vision models like `llava`) but **does not support audio input**. For local audio processing, use the `transcribe` tool first:
+
+```bash
+# Transcribe audio locally, then analyze
+transcribe audio.wav | ask -g "summarize what the speaker said"
+```
+
 ## Configuration
 
 Configuration is shared with `gc` and stored at `~/.config/cli-programs/llm.toml`.
@@ -135,6 +161,7 @@ When you pipe data to `ask`, it's automatically included as context for your que
 
 - `-g`, `--general`: Enable general question mode (see "How It Works" above)
 - `-m`, `--model <PRESET>`: Use a specific model preset
+- `-f`, `--file <PATH>`: Attach a file (image or audio) for multimodal analysis (can be repeated)
 - `-d`, `--debug`: Enable debug output (shows provider, token usage)
 - `<QUESTION>...`: Your question (if omitted, will prompt interactively)
 
