@@ -164,9 +164,23 @@ pub fn get_provider_with_fallback(config: &Config, preset_name: &str) -> Result<
         let preset = config.get_preset(&name)?;
         let provider_config = config.get_provider_config(&preset.provider);
 
-        // Create the provider
-        let provider = get_provider(preset, provider_config)?;
-        chain.push((name.clone(), provider));
+        // Create the provider, skipping if API key is missing
+        match get_provider(preset, provider_config) {
+            Ok(provider) => {
+                chain.push((name.clone(), provider));
+            }
+            Err(LlmError::MissingApiKey { provider, env_var }) => {
+                eprintln!(
+                    "Warning: Skipping '{}' - {} API key not found ({})",
+                    name, provider, env_var
+                );
+                // Continue to next preset in chain
+            }
+            Err(e) => {
+                // Other errors (config errors, invalid provider, etc.) should still fail
+                return Err(e);
+            }
+        }
 
         // Check for next in chain
         current_name = preset.fallback.clone();
@@ -331,6 +345,90 @@ mod tests {
         let result = provider.complete(request).await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap().content, "fallback response");
+    }
+
+    #[test]
+    fn test_skips_provider_with_missing_api_key() {
+        // Use unique env var names that are unlikely to exist
+        let mut presets = HashMap::new();
+
+        // Primary preset uses anthropic which requires an API key
+        // Use a unique env var name that won't exist
+        presets.insert(
+            "primary".to_string(),
+            ModelPreset {
+                provider: "anthropic".to_string(),
+                model: "claude-sonnet-4-20250514".to_string(),
+                fallback: Some("fallback".to_string()),
+                api_key_env: Some("__LLM_CLIENT_TEST_NONEXISTENT_KEY_12345__".to_string()),
+            },
+        );
+
+        // Fallback uses claude-cli which doesn't require an API key
+        presets.insert(
+            "fallback".to_string(),
+            ModelPreset {
+                provider: "claude-cli".to_string(),
+                model: "sonnet".to_string(),
+                fallback: None,
+                api_key_env: None,
+            },
+        );
+
+        let config = Config {
+            default_preset: "primary".to_string(),
+            defaults: HashMap::new(),
+            presets,
+            providers: HashMap::new(),
+        };
+
+        // Should succeed by skipping anthropic and using claude-cli
+        let result = get_provider_with_fallback(&config, "primary");
+        assert!(result.is_ok(), "Expected success but got: {:?}", result);
+
+        let provider = result.unwrap();
+        // Chain should only have the fallback provider
+        assert_eq!(provider.chain_len(), 1);
+        assert_eq!(provider.primary_name(), "fallback");
+    }
+
+    #[test]
+    fn test_fails_when_all_providers_missing_api_keys() {
+        // Use unique env var names that are unlikely to exist
+        let mut presets = HashMap::new();
+
+        presets.insert(
+            "primary".to_string(),
+            ModelPreset {
+                provider: "anthropic".to_string(),
+                model: "claude-sonnet-4-20250514".to_string(),
+                fallback: Some("fallback".to_string()),
+                api_key_env: Some("__LLM_CLIENT_TEST_NONEXISTENT_KEY_A__".to_string()),
+            },
+        );
+
+        presets.insert(
+            "fallback".to_string(),
+            ModelPreset {
+                provider: "cerebras".to_string(),
+                model: "llama-4-scout".to_string(),
+                fallback: None,
+                api_key_env: Some("__LLM_CLIENT_TEST_NONEXISTENT_KEY_B__".to_string()),
+            },
+        );
+
+        let config = Config {
+            default_preset: "primary".to_string(),
+            defaults: HashMap::new(),
+            presets,
+            providers: HashMap::new(),
+        };
+
+        // Should fail because all providers in chain are missing API keys
+        let result = get_provider_with_fallback(&config, "primary");
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("No providers in fallback chain"));
     }
 
     #[tokio::test]
