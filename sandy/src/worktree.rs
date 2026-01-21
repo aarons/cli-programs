@@ -2,6 +2,11 @@ use anyhow::{Context, Result, bail};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+/// Get the workspace path - git repo root if in a repo, otherwise the given path
+pub fn get_workspace_path(path: &Path) -> PathBuf {
+    get_repo_root(path).unwrap_or_else(|_| path.to_path_buf())
+}
+
 /// Get the current git repository root
 pub fn get_repo_root(path: &Path) -> Result<PathBuf> {
     let output = Command::new("git")

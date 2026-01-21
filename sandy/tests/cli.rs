@@ -250,7 +250,7 @@ fn test_config_create_dockerfile() {
 // ============================================================================
 
 #[test]
-fn test_new_requires_git_repo() {
+fn test_new_works_outside_git_repo() {
     let temp_dir = TempDir::new().unwrap();
     setup_test_config(&temp_dir);
 
@@ -258,16 +258,31 @@ fn test_new_requires_git_repo() {
     let work_dir = temp_dir.path().join("not-a-repo");
     fs::create_dir(&work_dir).unwrap();
 
-    sandy_cmd()
+    // sandy new should proceed in non-git directories (will fail on Docker, not git)
+    let result = sandy_cmd()
         .arg("new")
         .current_dir(&work_dir)
         .env("HOME", temp_dir.path())
-        .assert()
-        .failure()
-        .stderr(
-            predicate::str::contains("not in a git repository")
-                .or(predicate::str::contains("Not a git repository")),
-        );
+        .assert();
+
+    let output = result.get_output();
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    // Should NOT fail due to git repo requirement
+    assert!(
+        !stderr.contains("not in a git repository") && !stderr.contains("Not a git repository"),
+        "Should not require git repo, stderr: {}",
+        stderr
+    );
+
+    // Should proceed to template setup (may fail on Docker)
+    assert!(
+        stdout.contains("template") || stderr.contains("Docker") || stderr.contains("docker"),
+        "Should proceed to template setup or fail on Docker, stdout: {}, stderr: {}",
+        stdout,
+        stderr
+    );
 }
 
 #[test]
