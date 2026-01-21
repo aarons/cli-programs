@@ -35,3 +35,8 @@ ENV JAVA_HOME=/usr/lib/jvm/java-17
 
 # CLI binaries from configured binary_dirs (e.g., ~/.local/bin)
 COPY assets/bin/ /usr/local/bin/
+
+# Entrypoint that updates Claude Code on container start
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+ENTRYPOINT ["/entrypoint.sh"]

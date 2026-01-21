@@ -370,7 +370,7 @@ fn build_template_impl(
 
     if no_cache {
         println!(
-            "Building custom template image (no cache): {}",
+            "Building custom template image (pulling latest base): {}",
             image_name
         );
     } else {
@@ -381,10 +381,14 @@ fn build_template_impl(
     cmd.args(["build", "-t", image_name]);
 
     if no_cache {
-        cmd.arg("--no-cache");
+        cmd.args(["--no-cache", "--pull"]);
     }
 
-    cmd.args(["-f", &dockerfile_path.to_string_lossy(), &dockerfile_dir.to_string_lossy()]);
+    cmd.args([
+        "-f",
+        &dockerfile_path.to_string_lossy(),
+        &dockerfile_dir.to_string_lossy(),
+    ]);
 
     let status = cmd
         .stdout(Stdio::inherit())

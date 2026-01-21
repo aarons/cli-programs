@@ -229,7 +229,10 @@ mod tests {
     #[test]
     fn test_get_sandbox_entries_derives_name_from_path() {
         let mut state = State::default();
-        state.add_sandbox(PathBuf::from("/home/user/projects/awesome-project"), "claude");
+        state.add_sandbox(
+            PathBuf::from("/home/user/projects/awesome-project"),
+            "claude",
+        );
 
         let entries = get_sandbox_entries(&state).unwrap();
 

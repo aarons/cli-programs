@@ -250,7 +250,10 @@ fn cmd_resume() -> Result<()> {
         if let Some(info) = state.sandboxes.get(&repo_key) {
             let repo_name = get_repo_name(&info.path);
             // Use stored tool, or fall back to config default for legacy sandboxes
-            let tool = info.tool.clone().unwrap_or_else(|| config.default_tool.clone());
+            let tool = info
+                .tool
+                .clone()
+                .unwrap_or_else(|| config.default_tool.clone());
             println!("Resuming sandbox '{}' with {}...", repo_name, tool);
             start_sandbox(&info.path, &config, &tool)?;
             return Ok(());
@@ -270,7 +273,11 @@ fn cmd_resume() -> Result<()> {
     };
 
     // Use stored tool, or fall back to config default for legacy sandboxes
-    let tool = entry.info.tool.clone().unwrap_or_else(|| config.default_tool.clone());
+    let tool = entry
+        .info
+        .tool
+        .clone()
+        .unwrap_or_else(|| config.default_tool.clone());
 
     // Docker Sandbox handles reconnection automatically - just call run again
     println!("Resuming sandbox '{}' with {}...", entry.name, tool);
@@ -409,15 +416,16 @@ fn cmd_update(force: bool) -> Result<()> {
         DefaultTemplateStatus::Customized => {
             if force {
                 let backup_path = backup_dockerfile(&template_dockerfile)?;
-                println!("Backed up customized Dockerfile to: {}", backup_path.display());
+                println!(
+                    "Backed up customized Dockerfile to: {}",
+                    backup_path.display()
+                );
                 update_dockerfile_from_default(&template_dockerfile, DEFAULT_DOCKERFILE)?;
                 println!("Updated Dockerfile to latest default.");
             } else {
                 println!("Your Dockerfile has been customized and differs from the default.");
                 println!();
-                println!(
-                    "To update to the latest default template, run: sandy update --force"
-                );
+                println!("To update to the latest default template, run: sandy update --force");
                 println!("This will back up your current Dockerfile before updating.");
             }
         }
@@ -447,7 +455,9 @@ fn cmd_config(action: ConfigAction) -> Result<()> {
             } else {
                 println!("(Dockerfile does not exist yet)");
                 println!();
-                println!("A default Dockerfile will be created automatically when you run 'sandy new'.");
+                println!(
+                    "A default Dockerfile will be created automatically when you run 'sandy new'."
+                );
                 println!("To create it now for customization, run: sandy config create-dockerfile");
             }
         }

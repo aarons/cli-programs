@@ -2,7 +2,7 @@ mod audio;
 mod config;
 
 use anyhow::{bail, Context, Result};
-use clap::{Parser, Subcommand, ValueEnum};
+use clap::{CommandFactory, Parser, Subcommand, ValueEnum};
 use config::Config;
 use std::path::PathBuf;
 use std::process::Command;
@@ -74,11 +74,17 @@ fn main() -> Result<()> {
         return handle_config_command(action);
     }
 
+    // Show help if no file argument provided
+    if args.file.is_none() {
+        Args::command().print_long_help()?;
+        return Ok(());
+    }
+
     // Load config
     let config = Config::load().context("Failed to load configuration")?;
 
-    // Get the input file
-    let input_file = args.file.context("No input file specified")?;
+    // Get the input file (safe to unwrap since we checked above)
+    let input_file = args.file.unwrap();
 
     if !input_file.exists() {
         bail!("Input file not found: {}", input_file.display());

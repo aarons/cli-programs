@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.7.0] - 2026-01-21
+
+### Added
+- Auto-update Claude Code on container startup via entrypoint script
+- `--pull` flag now included with `sandy build --force` to pull latest base image
+
 ## [1.6.0] - 2025-12-22
 
 ### Added

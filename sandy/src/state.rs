@@ -410,8 +410,8 @@ mod tests {
             }
         }"#;
 
-        let state: State = serde_json::from_str(legacy_json)
-            .expect("Should parse state file without tool field");
+        let state: State =
+            serde_json::from_str(legacy_json).expect("Should parse state file without tool field");
 
         assert_eq!(state.sandboxes.len(), 1);
         let info = state.sandboxes.get("/test/repo").unwrap();
