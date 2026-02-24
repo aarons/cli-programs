@@ -8,11 +8,27 @@ use std::path::PathBuf;
 /// Default maximum tokens for diff content before switching to summary mode
 const DEFAULT_MAX_DIFF_TOKENS: usize = 30000;
 
+fn default_local_remote_name() -> String {
+    "local-git".to_string()
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LocalServerConfig {
+    /// SSH URL base, e.g. "ssh://localhost:23231"
+    pub url: String,
+    /// Git remote name (default: "local-git")
+    #[serde(default = "default_local_remote_name")]
+    pub remote_name: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GcConfig {
     /// Maximum estimated tokens for diff before prompting for context
     #[serde(default = "default_max_diff_tokens")]
     pub max_diff_tokens: usize,
+    /// Optional local git server for mirroring pushes
+    #[serde(default)]
+    pub local_server: Option<LocalServerConfig>,
 }
 
 fn default_max_diff_tokens() -> usize {
@@ -23,6 +39,7 @@ impl Default for GcConfig {
     fn default() -> Self {
         Self {
             max_diff_tokens: DEFAULT_MAX_DIFF_TOKENS,
+            local_server: None,
         }
     }
 }
@@ -83,5 +100,44 @@ max_diff_tokens = 50000
         let toml_str = "";
         let config: GcConfig = toml::from_str(toml_str).unwrap();
         assert_eq!(config.max_diff_tokens, 30000); // default
+        assert!(config.local_server.is_none());
+    }
+
+    #[test]
+    fn test_parse_config_with_local_server() {
+        let toml_str = r#"
+max_diff_tokens = 50000
+
+[local_server]
+url = "ssh://localhost:23231"
+"#;
+        let config: GcConfig = toml::from_str(toml_str).unwrap();
+        assert_eq!(config.max_diff_tokens, 50000);
+        let server = config.local_server.unwrap();
+        assert_eq!(server.url, "ssh://localhost:23231");
+        assert_eq!(server.remote_name, "local-git"); // default
+    }
+
+    #[test]
+    fn test_parse_config_with_local_server_custom_remote() {
+        let toml_str = r#"
+[local_server]
+url = "ssh://myserver:2222"
+remote_name = "backup"
+"#;
+        let config: GcConfig = toml::from_str(toml_str).unwrap();
+        let server = config.local_server.unwrap();
+        assert_eq!(server.url, "ssh://myserver:2222");
+        assert_eq!(server.remote_name, "backup");
+    }
+
+    #[test]
+    fn test_parse_config_without_local_server() {
+        let toml_str = r#"
+max_diff_tokens = 20000
+"#;
+        let config: GcConfig = toml::from_str(toml_str).unwrap();
+        assert_eq!(config.max_diff_tokens, 20000);
+        assert!(config.local_server.is_none());
     }
 }

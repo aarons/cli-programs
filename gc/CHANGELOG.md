@@ -4,6 +4,10 @@
 
 ### Added
 - Print a `... falling back to "<preset>"` line when the LLM provider chain falls back, so users can see when a configured fallback kicks in
+- Local git server push support for mirroring to a soft-serve server
+- Configurable via `[local_server]` section in `~/.config/cli-programs/gc.toml`
+- Pushes to local server as secondary mirror when origin exists, or as sole target when no origin
+- Local server failures are warnings, never fatal
 
 ## [1.2.1] - 2025-12-04
 

@@ -70,6 +70,8 @@ Overrides the default model preset for this commit.
 
 ## Configuration
 
+### LLM Configuration
+
 Configuration is stored at `~/.config/cli-programs/llm.toml`. Use `gc config` subcommands to manage LLM providers and presets.
 
 ### List available presets
@@ -101,6 +103,26 @@ Creates a new preset with the specified provider and model.
 - `anthropic` - Anthropic API (requires `ANTHROPIC_API_KEY`)
 - `openrouter` - OpenRouter API (requires `OPENROUTER_API_KEY`)
 - `cerebras` - Cerebras API (requires `CEREBRAS_API_KEY`)
+
+### gc-specific Configuration
+
+gc has its own config at `~/.config/cli-programs/gc.toml`:
+
+```toml
+# Maximum tokens before switching to summary mode (default: 30000)
+max_diff_tokens = 30000
+
+# Optional: push to a local soft-serve git server as a mirror
+[local_server]
+url = "ssh://localhost:23231"
+# remote_name = "local-git"  # optional, defaults to "local-git"
+```
+
+When `[local_server]` is configured, gc pushes to the local server after every commit:
+- If `origin` exists: pushes to both `origin` (primary) and the local server (secondary)
+- If no `origin`: pushes to the local server only
+- Failures pushing to the local server are warnings, never fatal
+- The repo path is derived from the git root directory name (e.g., `cli-programs` -> `ssh://localhost:23231/cli-programs`)
 
 ## Architecture
 

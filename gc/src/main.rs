@@ -228,8 +228,40 @@ fn commit(message: &str) -> Result<()> {
     Ok(())
 }
 
-fn push() -> Result<()> {
-    git(&["push"])?;
+/// Check if a named git remote exists
+fn has_remote(name: &str) -> bool {
+    git(&["remote", "get-url", name]).is_ok()
+}
+
+/// Get the git repo root directory name (e.g., "cli-programs")
+fn get_repo_dir_name() -> Result<String> {
+    let root = git(&["rev-parse", "--show-toplevel"])?;
+    let root = root.trim();
+    Path::new(root)
+        .file_name()
+        .and_then(|f| f.to_str())
+        .map(|s| s.to_string())
+        .ok_or_else(|| anyhow::anyhow!("Could not determine repo directory name"))
+}
+
+/// Ensure the local-git remote exists with the correct URL, return the full URL
+fn ensure_local_remote(server: &config::LocalServerConfig) -> Result<String> {
+    let repo_name = get_repo_dir_name()?;
+    let url = format!("{}/{}", server.url.trim_end_matches('/'), repo_name);
+
+    if has_remote(&server.remote_name) {
+        // Update URL if remote already exists
+        git(&["remote", "set-url", &server.remote_name, &url])?;
+    } else {
+        git(&["remote", "add", &server.remote_name, &url])?;
+    }
+
+    Ok(url)
+}
+
+/// Push to a specific remote and branch
+fn push_to_remote(remote: &str, branch: &str) -> Result<()> {
+    git(&["push", remote, branch])?;
     Ok(())
 }
 
@@ -795,27 +827,46 @@ async fn main() -> Result<()> {
         return Ok(());
     }
 
-    // TODO: Capture remote info and provide better feedback
-    match push() {
-        Ok(_) => {
-            // Get remote URL for better feedback
-            if let Ok(remote_url) = git(&["remote", "get-url", "origin"]) {
-                let cleaned_url = remote_url
-                    .trim()
-                    .replace("https://", "")
-                    .replace("git@", "")
-                    .replace(".git", "")
-                    .replace(":", "/");
-                println!("Pushed to {} {}", cleaned_url, current_branch);
-            } else {
-                println!("Pushed to remote");
+    let has_origin = has_remote("origin");
+
+    // Push to origin if it exists
+    if has_origin {
+        match push_to_remote("origin", &current_branch) {
+            Ok(_) => {
+                if let Ok(remote_url) = git(&["remote", "get-url", "origin"]) {
+                    let cleaned_url = remote_url
+                        .trim()
+                        .replace("https://", "")
+                        .replace("git@", "")
+                        .replace(".git", "")
+                        .replace(":", "/");
+                    println!("Pushed to {} {}", cleaned_url, current_branch);
+                } else {
+                    println!("Pushed to origin");
+                }
+            }
+            Err(e) => {
+                eprintln!("Warning: push to origin failed: {}", e);
+                eprintln!("You may need to manually push with: git push origin {}", current_branch);
             }
         }
-        Err(e) => {
-            eprintln!("Warning: git push failed. Commit was successful but not pushed to remote.");
-            eprintln!("Error: {}", e);
-            eprintln!("You may need to manually push with: git push");
+    }
+
+    // Push to local server if configured
+    if let Some(ref server) = gc_config.local_server {
+        match ensure_local_remote(server) {
+            Ok(url) => {
+                match push_to_remote(&server.remote_name, &current_branch) {
+                    Ok(_) => println!("Pushed to {} {}", url, current_branch),
+                    Err(e) => eprintln!("Warning: push to {} failed: {}", server.remote_name, e),
+                }
+            }
+            Err(e) => eprintln!("Warning: failed to configure {} remote: {}", server.remote_name, e),
         }
+    }
+
+    if !has_origin && gc_config.local_server.is_none() {
+        eprintln!("Warning: no remote configured (no origin and no local_server in config)");
     }
 
     Ok(())
