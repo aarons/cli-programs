@@ -5,11 +5,16 @@
 
 use async_trait::async_trait;
 use std::collections::HashSet;
+use std::sync::Arc;
 
 use crate::config::Config;
 use crate::error::{LlmError, Result};
 use crate::provider::{LlmProvider, LlmRequest, LlmResponse};
 use crate::providers::get_provider;
+
+/// Callback invoked when the fallback chain advances to the next preset.
+/// Receives the name of the preset about to be tried.
+pub type FallbackCallback = Arc<dyn Fn(&str) + Send + Sync>;
 
 /// A provider that wraps a chain of fallback providers.
 ///
@@ -21,6 +26,8 @@ pub struct FallbackProvider {
     chain: Vec<(String, Box<dyn LlmProvider>)>,
     /// Whether to print debug info
     debug: bool,
+    /// Optional callback invoked with the next preset name on each fallback transition
+    on_fallback: Option<FallbackCallback>,
 }
 
 impl std::fmt::Debug for FallbackProvider {
@@ -29,6 +36,7 @@ impl std::fmt::Debug for FallbackProvider {
             .field("chain_len", &self.chain.len())
             .field("preset_names", &self.chain.iter().map(|(n, _)| n.as_str()).collect::<Vec<_>>())
             .field("debug", &self.debug)
+            .field("has_fallback_callback", &self.on_fallback.is_some())
             .finish()
     }
 }
@@ -36,7 +44,7 @@ impl std::fmt::Debug for FallbackProvider {
 impl FallbackProvider {
     /// Create a new FallbackProvider with the given chain
     fn new(chain: Vec<(String, Box<dyn LlmProvider>)>) -> Self {
-        Self { chain, debug: false }
+        Self { chain, debug: false, on_fallback: None }
     }
 
     /// Create a FallbackProvider directly from a chain of providers.
@@ -50,6 +58,16 @@ impl FallbackProvider {
     /// Enable debug output
     pub fn with_debug(mut self, debug: bool) -> Self {
         self.debug = debug;
+        self
+    }
+
+    /// Register a callback invoked with the next preset name each time the
+    /// chain falls back from a failed provider to the next one.
+    pub fn with_fallback_callback<F>(mut self, callback: F) -> Self
+    where
+        F: Fn(&str) + Send + Sync + 'static,
+    {
+        self.on_fallback = Some(Arc::new(callback));
         self
     }
 
@@ -85,9 +103,9 @@ impl LlmProvider for FallbackProvider {
 
                     // If there's a next provider, log and continue
                     if i + 1 < self.chain.len() {
-                        if self.debug {
-                            let next_name = &self.chain[i + 1].0;
-                            eprintln!("Falling back to '{}'...", next_name);
+                        let next_name = &self.chain[i + 1].0;
+                        if let Some(cb) = &self.on_fallback {
+                            cb(next_name);
                         }
                         last_error = Some(e);
                         continue;
@@ -429,6 +447,82 @@ mod tests {
         assert!(result.is_err());
         let err = result.unwrap_err().to_string();
         assert!(err.contains("No providers in fallback chain"));
+    }
+
+    #[tokio::test]
+    async fn callback_fires_with_next_preset_name_on_each_fallback() {
+        let chain = vec![
+            (
+                "primary".to_string(),
+                Box::new(MockProvider::always_fails(LlmError::ApiError {
+                    message: "boom".to_string(),
+                    status_code: Some(500),
+                })) as Box<dyn LlmProvider>,
+            ),
+            (
+                "second".to_string(),
+                Box::new(MockProvider::always_fails(LlmError::ApiError {
+                    message: "boom".to_string(),
+                    status_code: Some(500),
+                })) as Box<dyn LlmProvider>,
+            ),
+            (
+                "third".to_string(),
+                Box::new(MockProvider::always_succeeds("ok")) as Box<dyn LlmProvider>,
+            ),
+        ];
+
+        let calls: Arc<std::sync::Mutex<Vec<String>>> = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let calls_for_cb = Arc::clone(&calls);
+        let provider = FallbackProvider::new(chain).with_fallback_callback(move |name| {
+            calls_for_cb.lock().unwrap().push(name.to_string());
+        });
+
+        let request = LlmRequest {
+            prompt: "test".to_string(),
+            system_prompt: None,
+            max_tokens: None,
+            temperature: None,
+            files: vec![],
+            json_schema: None,
+        };
+
+        let result = provider.complete(request).await;
+        assert!(result.is_ok());
+        assert_eq!(*calls.lock().unwrap(), vec!["second", "third"]);
+    }
+
+    #[tokio::test]
+    async fn callback_not_called_when_first_provider_succeeds() {
+        let chain = vec![
+            (
+                "primary".to_string(),
+                Box::new(MockProvider::always_succeeds("ok")) as Box<dyn LlmProvider>,
+            ),
+            (
+                "fallback".to_string(),
+                Box::new(MockProvider::always_succeeds("nope")) as Box<dyn LlmProvider>,
+            ),
+        ];
+
+        let calls: Arc<std::sync::Mutex<Vec<String>>> = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let calls_for_cb = Arc::clone(&calls);
+        let provider = FallbackProvider::new(chain).with_fallback_callback(move |name| {
+            calls_for_cb.lock().unwrap().push(name.to_string());
+        });
+
+        let request = LlmRequest {
+            prompt: "test".to_string(),
+            system_prompt: None,
+            max_tokens: None,
+            temperature: None,
+            files: vec![],
+            json_schema: None,
+        };
+
+        let result = provider.complete(request).await;
+        assert!(result.is_ok());
+        assert!(calls.lock().unwrap().is_empty());
     }
 
     #[tokio::test]

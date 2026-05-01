@@ -31,7 +31,10 @@ impl LlmClient {
 
         let provider = get_provider_with_fallback(&config, &preset_name)
             .context(format!("Failed to initialize provider chain for preset '{}'", preset_name))?
-            .with_debug(debug);
+            .with_debug(debug)
+            .with_fallback_callback(|next_name| {
+                println!("... falling back to \"{}\"", next_name);
+            });
 
         if debug {
             eprintln!(

@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.3.0] - TBD
+
+### Added
+- Print a `... falling back to "<preset>"` line when the LLM provider chain falls back, so users can see when a configured fallback kicks in
+
 ## [1.2.1] - 2025-12-04
 
 ### Fixed

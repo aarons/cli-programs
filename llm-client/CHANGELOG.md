@@ -4,6 +4,7 @@
 
 ### Added
 - LM Studio provider for local LLM inference via OpenAI-compatible API (default endpoint: http://127.0.0.1:1234/v1)
+- `FallbackProvider::with_fallback_callback` builder for surfacing fallback transitions to callers (invoked with the next preset name when the chain advances)
 
 ## [0.3.0] - 2025-11-30
 
