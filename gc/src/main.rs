@@ -563,9 +563,16 @@ fn handle_config_command(action: &ConfigAction) -> Result<()> {
         ConfigAction::Show => {
             let config = Config::load()?;
             let path = Config::config_path()?;
-            println!("Config file: {}", path.display());
+            println!("LLM config: {}", path.display());
             println!();
             println!("{:#?}", config);
+
+            let gc_config = GcConfig::load()?;
+            let gc_path = GcConfig::config_path()?;
+            println!();
+            println!("gc config:  {}", gc_path.display());
+            println!();
+            println!("{:#?}", gc_config);
         }
         ConfigAction::AddPreset {
             name,
