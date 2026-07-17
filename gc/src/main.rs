@@ -53,9 +53,29 @@ struct Args {
     message: Vec<String>,
 }
 
+const CONFIG_AFTER_HELP: &str = "\
+Configuration lives in two files:
+
+  ~/.config/cli-programs/llm.toml  LLM providers and model presets, managed by
+                                   the list/show/set-default/add-preset commands
+  ~/.config/cli-programs/gc.toml   gc-specific settings, edited by hand
+                                   (run `gc config init` to create an example)
+
+Example gc.toml:
+
+  # Maximum diff tokens before switching to summary mode (default: 30000)
+  max_diff_tokens = 30000
+
+  # Optional: mirror pushes to a local git server (e.g. soft-serve)
+  [local_server]
+  url = \"ssh://localhost:23231\"
+  # remote_name = \"local-git\"  # git remote to use (default: \"local-git\")
+";
+
 #[derive(Subcommand, Debug)]
 enum Commands {
     /// Configuration management
+    #[command(after_long_help = CONFIG_AFTER_HELP)]
     Config {
         #[command(subcommand)]
         action: ConfigAction,
@@ -73,6 +93,8 @@ enum ConfigAction {
     List,
     /// Show current configuration
     Show,
+    /// Create an example gc.toml config file (never overwrites an existing one)
+    Init,
     /// Add a new preset
     AddPreset {
         /// Preset name
@@ -565,14 +587,35 @@ fn handle_config_command(action: &ConfigAction) -> Result<()> {
             let path = Config::config_path()?;
             println!("LLM config: {}", path.display());
             println!();
-            println!("{:#?}", config);
+            println!("{}", toml::to_string_pretty(&config)?);
 
             let gc_config = GcConfig::load()?;
             let gc_path = GcConfig::config_path()?;
-            println!();
             println!("gc config:  {}", gc_path.display());
+            if !gc_path.exists() {
+                println!("(file not found — using defaults; run `gc config init` to create one)");
+            }
             println!();
-            println!("{:#?}", gc_config);
+            println!("{}", toml::to_string_pretty(&gc_config)?);
+        }
+        ConfigAction::Init => {
+            let path = GcConfig::config_path()?;
+            if path.exists() {
+                println!(
+                    "Config already exists at {} — not overwriting.",
+                    path.display()
+                );
+                println!();
+                println!("Example config for reference:");
+                println!();
+                print!("{}", config::EXAMPLE_CONFIG);
+            } else {
+                if let Some(parent) = path.parent() {
+                    std::fs::create_dir_all(parent)?;
+                }
+                std::fs::write(&path, config::EXAMPLE_CONFIG)?;
+                println!("Wrote example config to {}", path.display());
+            }
         }
         ConfigAction::AddPreset {
             name,
