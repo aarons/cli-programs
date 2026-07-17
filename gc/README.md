@@ -106,7 +106,13 @@ Creates a new preset with the specified provider and model.
 
 ### gc-specific Configuration
 
-gc has its own config at `~/.config/cli-programs/gc.toml`:
+gc has its own config at `~/.config/cli-programs/gc.toml`. Run `gc config init` to create a commented example file (it never overwrites an existing config — if one exists, the example is printed to stdout instead). `gc config --help` also shows an example, and `gc config show` prints both config files as ready-to-paste TOML.
+
+```bash
+gc config init
+```
+
+The config format:
 
 ```toml
 # Maximum tokens before switching to summary mode (default: 30000)

@@ -8,6 +8,11 @@
 - Configurable via `[local_server]` section in `~/.config/cli-programs/gc.toml`
 - Pushes to local server as secondary mirror when origin exists, or as sole target when no origin
 - Local server failures are warnings, never fatal
+- `gc config init` creates a commented example `gc.toml` (never overwrites an existing config)
+- `gc config --help` now shows config file locations and an example `gc.toml`
+
+### Changed
+- `gc config show` prints both config files as copy-pasteable TOML instead of Rust debug format, and hints at `gc config init` when `gc.toml` is missing
 
 ## [1.2.1] - 2025-12-04
 

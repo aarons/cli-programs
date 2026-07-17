@@ -8,6 +8,26 @@ use std::path::PathBuf;
 /// Default maximum tokens for diff content before switching to summary mode
 const DEFAULT_MAX_DIFF_TOKENS: usize = 30000;
 
+/// Commented example config written by `gc config init`
+pub const EXAMPLE_CONFIG: &str = r#"# gc configuration
+# Location: ~/.config/cli-programs/gc.toml
+
+# Maximum estimated diff tokens before gc switches to summary mode
+# (prompts for a description and sends the file list instead of the full diff)
+max_diff_tokens = 30000
+
+# Optional: mirror every push to a local git server (e.g. soft-serve).
+# When configured, gc pushes to this server after every commit, in addition
+# to origin (or as the sole target when the repo has no origin).
+# Failures pushing to the local server are warnings, never fatal.
+# The repo path is derived from the git root directory name, so a repo at
+# ~/code/cli-programs pushes to ssh://localhost:23231/cli-programs.
+#
+# [local_server]
+# url = "ssh://localhost:23231"
+# remote_name = "local-git"  # git remote to create/update (default: "local-git")
+"#;
+
 fn default_local_remote_name() -> String {
     "local-git".to_string()
 }
@@ -129,6 +149,33 @@ remote_name = "backup"
         let server = config.local_server.unwrap();
         assert_eq!(server.url, "ssh://myserver:2222");
         assert_eq!(server.remote_name, "backup");
+    }
+
+    #[test]
+    fn test_example_config_parses_to_defaults() {
+        // Guards against edits to the template breaking its TOML syntax or
+        // shipping non-default values as the "example defaults"
+        let config: GcConfig = toml::from_str(EXAMPLE_CONFIG).unwrap();
+        assert_eq!(config.max_diff_tokens, DEFAULT_MAX_DIFF_TOKENS);
+        assert!(config.local_server.is_none());
+    }
+
+    #[test]
+    fn test_example_config_local_server_section_is_valid_when_uncommented() {
+        // The commented-out [local_server] block must stay valid TOML so users
+        // can enable it by just removing the leading "# " markers
+        let uncommented: String = EXAMPLE_CONFIG
+            .lines()
+            .filter_map(|line| {
+                let rest = line.strip_prefix("# ")?;
+                (rest.starts_with('[') || rest.contains(" = ")).then_some(rest)
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        let config: GcConfig = toml::from_str(&uncommented).unwrap();
+        let server = config.local_server.expect("local_server should parse");
+        assert_eq!(server.url, "ssh://localhost:23231");
+        assert_eq!(server.remote_name, "local-git");
     }
 
     #[test]
