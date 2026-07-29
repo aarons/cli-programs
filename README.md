@@ -6,6 +6,7 @@ Collection of command-line utilities written in Rust for Unix environments (macO
 
 - **[ask](ask/README.md)** - Helper for shell commands and general questions
 - **[gc](gc/README.md)** - Automated git commit messages using Claude Code CLI
+- **[get-image](get-image/README.md)** - Generate images from a text prompt via OpenRouter image models
 - **[git-clean](git-clean/README.md)** - Interactive tool to safely remove merged local and remote git branches
 - **[transcribe](transcribe/README.md)** - Audio to text transcription using whisper.cpp
 - **[update-cli-programs](update-cli-programs/README.md)** - Automated installer/updater for these CLI programs
@@ -54,6 +55,27 @@ gc --nopush
 # Optionally you can provide additional context for better messages
 gc refactored authentication system
 ```
+
+---
+
+### get-image
+
+Generate images from a text prompt using OpenRouter image models and save them to the current working directory. Defaults to inexpensive settings, and an interactive session makes it quick to tweak the prompt and regenerate.
+
+Example usage:
+
+```bash
+# Generate an image (saved as a-watercolor-fox.png in the current directory)
+get-image a watercolor fox
+
+# Higher quality, larger, four copies
+get-image --quality high --size 1024 -n 4 "logo sketch"
+
+# Browse available image models with pricing, cheapest first
+get-image models
+```
+
+Requires an OpenRouter API key (`OPENROUTER_API_KEY`).
 
 ---
 
