@@ -6,6 +6,8 @@ use std::path::PathBuf;
 use crate::config;
 use crate::openrouter::{GenerationSettings, ImageClient};
 use crate::output;
+use crate::template;
+use crate::terminal_display::{self, InlineProtocol};
 
 /// One image-generation session: the current prompt and settings, plus every
 /// image saved so far. Drives both the initial generation and the interactive
@@ -17,12 +19,14 @@ pub struct Session {
     pub settings: GenerationSettings,
     pub output_stem: Option<String>,
     pub open_after_save: bool,
+    pub display_protocol: Option<InlineProtocol>,
     pub saved_paths: Vec<PathBuf>,
 }
 
 const HELP_TEXT: &str = "\
 Enter          regenerate with the same prompt
 <new text>     replace the prompt and generate (press Up to edit the last prompt)
+               [a|b] in a prompt expands to one generation per option
 /model <id>    switch model (see `get-image models` for options)
 /quality <q>   set quality: low, medium, high, auto
 /size <s>      set size: 512 or 1024x768
@@ -35,16 +39,35 @@ Enter          regenerate with the same prompt
 /quit          exit (Ctrl-C and Ctrl-D also work)";
 
 impl Session {
-    /// Generate images for the current prompt and save them to the working
-    /// directory, printing each saved path.
+    /// Generate images for the current prompt — expanding [a|b] template
+    /// groups into one generation per combination — and save them to the
+    /// working directory, printing each saved path.
     pub async fn generate(&mut self) -> Result<()> {
+        let prompts = template::expand_template(&self.prompt)?;
+
+        let mut total_cost = 0.0;
+        for (index, prompt) in prompts.iter().enumerate() {
+            if prompts.len() > 1 {
+                println!("[{}/{}] {}", index + 1, prompts.len(), prompt);
+            }
+            total_cost += self.generate_for_prompt(prompt).await?;
+        }
+
+        if prompts.len() > 1 && total_cost > 0.0 {
+            println!("Total cost: ${:.4}", total_cost);
+        }
+        Ok(())
+    }
+
+    /// Generate images for one expanded prompt, returning the reported cost
+    async fn generate_for_prompt(&mut self, prompt: &str) -> Result<f64> {
         let plural = if self.settings.count == 1 { "" } else { "s" };
         println!(
             "Generating {} image{} with {} (quality {}, size {})...",
             self.settings.count, plural, self.settings.model, self.settings.quality, self.settings.size
         );
 
-        let result = self.client.generate(&self.prompt, &self.settings).await?;
+        let result = self.client.generate(prompt, &self.settings).await?;
 
         if result.images.is_empty() {
             anyhow::bail!("The model returned no images.");
@@ -53,13 +76,19 @@ impl Session {
         let stem = self
             .output_stem
             .clone()
-            .unwrap_or_else(|| output::slug_from_prompt(&self.prompt));
+            .unwrap_or_else(|| output::slug_from_prompt(prompt));
 
         for generated in &result.images {
             let image =
                 output::decode_base64_image(&generated.b64_json, generated.media_type.as_deref())?;
             let path = output::save_image(&self.working_directory, &stem, &image)?;
             println!("Saved: {}", path.display());
+
+            if let Some(protocol) = self.display_protocol
+                && let Err(error) = terminal_display::display_inline(protocol, &image)
+            {
+                eprintln!("Could not display image: {}", error);
+            }
 
             if self.open_after_save
                 && let Err(error) = output::open_in_viewer(&path)
@@ -70,13 +99,11 @@ impl Session {
             self.saved_paths.push(path);
         }
 
-        if let Some(cost) = result.cost
-            && cost > 0.0
-        {
+        let cost = result.cost.unwrap_or(0.0);
+        if cost > 0.0 {
             println!("Cost: ${:.4}", cost);
         }
-
-        Ok(())
+        Ok(cost)
     }
 
     /// Run the interactive loop: Enter regenerates, new text replaces the
@@ -276,6 +303,7 @@ mod tests {
             },
             output_stem: None,
             open_after_save: false,
+            display_protocol: None,
             saved_paths: Vec::new(),
         }
     }

@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.2.0] - 2026-07-28
+
+### Added
+- Inline image display in the terminal after each generation, on terminals that support it (iTerm2, WezTerm, kitty, Ghostty); disable with `--no-display`
+- Prompt templates: `[a|b]` groups expand into one generation per combination, e.g. "a [red|blue] [cat|dog]" generates four images (limit 16), with a total cost summary
+
 ## [0.1.0] - 2026-07-28
 
 ### Added

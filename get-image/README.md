@@ -13,6 +13,10 @@ get-image a watercolor fox reading a newspaper
 # Pick a model, higher quality, bigger canvas, four copies
 get-image --model openai/gpt-image-1 --quality high --size 2K -n 4 "logo sketch"
 
+# Template groups: [a|b] expands into one generation per combination.
+# This generates four images: red cat, red dog, blue cat, blue dog.
+get-image "a [red|blue] [cat|dog] in a meadow"
+
 # Generate once and exit without the interactive session
 get-image --once a quick test render
 
@@ -24,6 +28,25 @@ The prompt is saved to a filename derived from it, e.g.
 `a-watercolor-fox-reading-a-newspaper.png`; repeated generations never
 overwrite (`...-2.png`, `...-3.png`).
 
+## Inline display
+
+On terminals that can render images — iTerm2, WezTerm, kitty, and Ghostty —
+each generated image is also displayed directly in the terminal (via the
+iTerm2 inline-image protocol or the kitty graphics protocol, chosen
+automatically). Pass `--no-display` to turn this off. Inside tmux or screen,
+which don't pass the escape sequences through, display is skipped
+automatically.
+
+## Prompt templates
+
+A prompt may contain `[option|option|...]` groups. Each group multiplies the
+prompt into one generation per option, and multiple groups combine:
+`"a [red|blue] [cat|dog]"` expands to four prompts. Brackets without a `|`
+inside are kept as literal text. A template is limited to 16 combinations as
+a guard against accidental large bills (each combination also honors
+`--count`). Templates work both on the command line and in the interactive
+session, and a total cost is printed after multi-prompt runs.
+
 ## Interactive session
 
 After the first image, `get-image` stays open (unless `--once` is passed or
@@ -31,7 +54,8 @@ stdin is not a terminal):
 
 ```
 get-image> ⏎               regenerate the same prompt
-get-image> <new text>      replace the prompt and generate (Up edits the last prompt)
+get-image> <new text>      replace the prompt and generate (Up edits the last prompt);
+                           [a|b] template groups expand here too
 get-image> /model <id>     switch model
 get-image> /quality high   set quality (low, medium, high, auto)
 get-image> /size 1024x768  set size (512, 1K, 2K, 4K, 1024, or WIDTHxHEIGHT)

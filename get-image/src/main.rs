@@ -2,6 +2,8 @@ mod config;
 mod openrouter;
 mod output;
 mod session;
+mod template;
+mod terminal_display;
 
 use anyhow::{Context, Result};
 use clap::{CommandFactory, Parser, Subcommand};
@@ -16,7 +18,10 @@ use openrouter::{GenerationSettings, ImageClient};
     about = "Generate images from a text prompt via OpenRouter image models",
     long_about = "Generates images from a text prompt using OpenRouter image models and saves \
 them to the current working directory. After the first image, an interactive session lets you \
-tweak the prompt and settings and regenerate quickly."
+tweak the prompt and settings and regenerate quickly.\n\nOn terminals with inline-image support \
+(iTerm2, WezTerm, kitty, Ghostty) each image is also rendered in the terminal.\n\nPrompts may \
+contain [a|b] template groups, expanded into one generation per combination: \"a [red|blue] \
+[cat|dog]\" generates four images."
 )]
 #[command(version)]
 struct Args {
@@ -43,6 +48,10 @@ struct Args {
     /// Open images in the system viewer after saving
     #[arg(long)]
     open: bool,
+
+    /// Don't render images inline in the terminal
+    #[arg(long)]
+    no_display: bool,
 
     /// Generate once and exit without the interactive session
     #[arg(long)]
@@ -113,6 +122,12 @@ async fn main() -> Result<()> {
     let client = ImageClient::new(resolve_api_key()?, args.debug);
     let working_directory = std::env::current_dir().context("Cannot determine current directory")?;
 
+    let display_protocol = if args.no_display || !std::io::stdout().is_terminal() {
+        None
+    } else {
+        terminal_display::detect_protocol()
+    };
+
     let mut session = session::Session {
         client,
         working_directory,
@@ -120,6 +135,7 @@ async fn main() -> Result<()> {
         settings,
         output_stem: args.output,
         open_after_save,
+        display_protocol,
         saved_paths: Vec::new(),
     };
 
