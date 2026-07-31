@@ -11,6 +11,7 @@ This is a monorepo for command-line utilities written in Rust for Unix environme
 - gc - Automated git commit with AI-generated conventional commit messages using Claude CLI
 - get-image - Generate images from a text prompt via OpenRouter image models
 - git-clean - Interactive tool to clean up local and remote Git branches
+- sched - TUI for browsing and managing scheduled jobs on macOS (launchd + cron)
 - transcribe - Audio to text transcription using whisper.cpp
 - update-cli-programs - Automated installer/updater for all workspace binaries to ~/.local/bin
 

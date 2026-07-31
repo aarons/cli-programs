@@ -8,6 +8,7 @@ Collection of command-line utilities written in Rust for Unix environments (macO
 - **[gc](gc/README.md)** - Automated git commit messages using Claude Code CLI
 - **[get-image](get-image/README.md)** - Generate images from a text prompt via OpenRouter image models
 - **[git-clean](git-clean/README.md)** - Interactive tool to safely remove merged local and remote git branches
+- **[sched](sched/README.md)** - TUI for browsing and managing scheduled jobs on macOS (launchd + cron)
 - **[transcribe](transcribe/README.md)** - Audio to text transcription using whisper.cpp
 - **[update-cli-programs](update-cli-programs/README.md)** - Automated installer/updater for these CLI programs
 
@@ -88,6 +89,25 @@ Example usage:
 ```bash
 # Clean up merged branches
 git-clean
+```
+
+---
+
+### sched
+
+Terminal UI for browsing and managing every scheduled job on your Mac — user crontab, system crontabs, LaunchAgents, and LaunchDaemons — in one place. Shows schedules on a visual day/week timeline, lists upcoming runs with countdowns, and can edit, reschedule (with live cron preview), enable/disable, run, and delete jobs.
+
+Example usage:
+
+```bash
+# Launch the TUI
+sched
+
+# Non-interactive: every job with schedule and next run
+sched list
+
+# What runs in the next 24 hours?
+sched next
 ```
 
 ---

@@ -1,0 +1,21 @@
+[package]
+name = "sched"
+version = "0.1.0"
+edition = "2024"
+description = "TUI for browsing and managing scheduled jobs on macOS (launchd + cron)"
+
+[dependencies]
+clap = { workspace = true }
+anyhow = { workspace = true }
+chrono = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+ratatui = "0.29"
+crossterm = "0.28"
+plist = "1"
+dirs = "5.0"
+
+[dev-dependencies]
+assert_cmd = "2.0"
+predicates = "3.0"
+tempfile = "3"
