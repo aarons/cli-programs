@@ -1,6 +1,6 @@
 [package]
 name = "get-image"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 authors = ["Aaron"]
 description = "Generate images from a text prompt via OpenRouter image models"
@@ -15,6 +15,7 @@ clap = { workspace = true }
 anyhow = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+chrono = { workspace = true }
 toml = { workspace = true }
 llm-client = { path = "../llm-client" }
 base64 = "0.22"

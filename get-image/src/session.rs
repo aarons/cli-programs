@@ -4,6 +4,7 @@ use rustyline::error::ReadlineError;
 use std::path::PathBuf;
 
 use crate::config;
+use crate::generation_log;
 use crate::openrouter::{GenerationSettings, ImageClient};
 use crate::output;
 use crate::template;
@@ -73,16 +74,19 @@ impl Session {
             anyhow::bail!("The model returned no images.");
         }
 
+        let now = chrono::Local::now();
         let stem = self
             .output_stem
             .clone()
-            .unwrap_or_else(|| output::slug_from_prompt(prompt));
+            .unwrap_or_else(|| output::stem_for_prompt(prompt, now.date_naive()));
 
+        let mut saved_file_names = Vec::new();
         for generated in &result.images {
             let image =
                 output::decode_base64_image(&generated.b64_json, generated.media_type.as_deref())?;
             let path = output::save_image(&self.working_directory, &stem, &image)?;
             println!("Saved: {}", path.display());
+            saved_file_names.push(path.file_name().unwrap_or_default().to_string_lossy().into_owned());
 
             if let Some(protocol) = self.display_protocol
                 && let Err(error) = terminal_display::display_inline(protocol, &image)
@@ -97,6 +101,24 @@ impl Session {
             }
 
             self.saved_paths.push(path);
+        }
+
+        let record = generation_log::GenerationRecord {
+            time: now.to_rfc3339_opts(chrono::SecondsFormat::Secs, false),
+            prompt: prompt.to_string(),
+            model: self.settings.model.clone(),
+            quality: self.settings.quality.clone(),
+            size: self.settings.size.clone(),
+            cost: result.cost,
+            files: saved_file_names,
+        };
+        // A log failure shouldn't discard an otherwise successful generation
+        if let Err(error) = generation_log::append_record(&self.working_directory, &record) {
+            eprintln!(
+                "Could not write {}: {:#}",
+                generation_log::LOG_FILE_NAME,
+                error
+            );
         }
 
         let cost = result.cost.unwrap_or(0.0);

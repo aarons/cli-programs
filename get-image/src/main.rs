@@ -1,4 +1,5 @@
 mod config;
+mod generation_log;
 mod openrouter;
 mod output;
 mod session;
@@ -41,7 +42,7 @@ struct Args {
     #[arg(short = 'n', long)]
     count: Option<u32>,
 
-    /// Output filename stem (default: derived from the prompt)
+    /// Output filename stem (default: the date plus a short prompt slug)
     #[arg(short, long)]
     output: Option<String>,
 

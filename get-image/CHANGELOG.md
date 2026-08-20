@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.0] - 2026-07-29
+
+### Added
+- Generation log: every generation is appended to `image-generation-log.jsonl` in the working directory, recording the timestamp, full prompt, model, quality, size, reported cost, and saved files
+
+### Changed
+- Default filenames are now the generation date plus the first few words of the prompt (e.g. `2026-07-29-a-cute-puppy-dog.png`), so names sort chronologically and stay short; the full prompt lives in the generation log
+
 ## [0.2.0] - 2026-07-28
 
 ### Added

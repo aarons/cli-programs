@@ -24,9 +24,26 @@ get-image --once a quick test render
 get-image models
 ```
 
-The prompt is saved to a filename derived from it, e.g.
-`a-watercolor-fox-reading-a-newspaper.png`; repeated generations never
-overwrite (`...-2.png`, `...-3.png`).
+## Filenames and the generation log
+
+Images are named with the generation date plus the first few words of the
+prompt, e.g. `2026-07-29-a-watercolor-fox-reading.png`, so names sort
+chronologically and stay recognizable. Repeated generations never overwrite
+(`...-2.png`, `...-3.png`), and `--output` replaces the whole stem with a
+name of your choosing.
+
+Because the filename only carries a fragment of the prompt, every generation
+is also appended to `image-generation-log.jsonl` in the working directory —
+one JSON line per API call with the timestamp, full prompt, model, quality,
+size, reported cost, and the files it produced:
+
+```json
+{"time":"2026-07-29T14:35:02-07:00","prompt":"a watercolor fox reading a newspaper","model":"google/gemini-2.5-flash-image","quality":"low","size":"512","cost":0.0034,"files":["2026-07-29-a-watercolor-fox-reading.png"]}
+```
+
+The log is plain-greppable (`grep fox image-generation-log.jsonl`) and
+parseable with `jq`, e.g. total spend in a directory:
+`jq -s 'map(.cost // 0) | add' image-generation-log.jsonl`.
 
 ## Inline display
 

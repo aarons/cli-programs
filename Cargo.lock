@@ -596,10 +596,11 @@ dependencies = [
 
 [[package]]
 name = "get-image"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "base64",
+ "chrono",
  "clap",
  "llm-client",
  "reqwest",
