@@ -2,8 +2,11 @@ use anyhow::{Context, Result};
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use std::path::{Path, PathBuf};
 
-/// Maximum length of a filename stem derived from a prompt
-const SLUG_LENGTH_MAX: usize = 48;
+/// Maximum number of prompt words kept in a filename slug
+const SLUG_WORDS_MAX: usize = 5;
+
+/// Maximum length of a filename slug, capping runs of very long words
+const SLUG_LENGTH_MAX: usize = 40;
 
 /// A decoded image ready to be written to disk
 pub struct DecodedImage {
@@ -36,26 +39,25 @@ fn extension_for_media_type(media_type: &str) -> &'static str {
     }
 }
 
-/// Build a filesystem-friendly slug from a prompt
+/// Build a filesystem-friendly slug from the first few words of a prompt
 pub fn slug_from_prompt(prompt: &str) -> String {
-    let mut slug = String::new();
-    let mut previous_was_dash = true; // suppress leading dashes
+    let words: Vec<String> = prompt
+        .split(|character: char| !character.is_ascii_alphanumeric())
+        .filter(|word| !word.is_empty())
+        .take(SLUG_WORDS_MAX)
+        .map(|word| word.to_ascii_lowercase())
+        .collect();
 
-    for character in prompt.chars() {
-        if slug.len() >= SLUG_LENGTH_MAX {
-            break;
-        }
-        if character.is_ascii_alphanumeric() {
-            slug.push(character.to_ascii_lowercase());
-            previous_was_dash = false;
-        } else if !previous_was_dash {
-            slug.push('-');
-            previous_was_dash = true;
-        }
-    }
-
+    let mut slug = words.join("-");
+    slug.truncate(SLUG_LENGTH_MAX); // safe: slug is pure ASCII
     let slug = slug.trim_end_matches('-').to_string();
     if slug.is_empty() { "image".to_string() } else { slug }
+}
+
+/// Build the default filename stem for a prompt: the generation date followed
+/// by a short prompt slug, e.g. "2026-07-29-a-cute-puppy-dog"
+pub fn stem_for_prompt(prompt: &str, date: chrono::NaiveDate) -> String {
+    format!("{}-{}", date.format("%Y-%m-%d"), slug_from_prompt(prompt))
 }
 
 /// Find a path in `directory` for `stem` + `extension` that doesn't collide
@@ -127,19 +129,36 @@ mod tests {
     #[test]
     fn test_slug_from_prompt_produces_clean_filenames() {
         assert_eq!(
-            slug_from_prompt("A sunset over the lake, painted!"),
-            "a-sunset-over-the-lake-painted"
+            slug_from_prompt("A sunset, painted in oils!"),
+            "a-sunset-painted-in-oils"
         );
         assert_eq!(slug_from_prompt("  éclair &&& café  "), "clair-caf");
         assert_eq!(slug_from_prompt("!!!"), "image");
     }
 
     #[test]
-    fn test_slug_is_truncated_for_long_prompts() {
-        let long_prompt = "word ".repeat(50);
-        let slug = slug_from_prompt(&long_prompt);
+    fn test_slug_keeps_only_the_first_words_of_long_prompts() {
+        assert_eq!(
+            slug_from_prompt("A cute puppy dog wearing a tiny red raincoat in the rain"),
+            "a-cute-puppy-dog-wearing"
+        );
+    }
+
+    #[test]
+    fn test_slug_is_truncated_when_words_are_very_long() {
+        let long_word_prompt = "x".repeat(100);
+        let slug = slug_from_prompt(&long_word_prompt);
         assert!(slug.len() <= SLUG_LENGTH_MAX);
         assert!(!slug.ends_with('-'));
+    }
+
+    #[test]
+    fn test_stem_is_date_prefixed_slug() {
+        let date = chrono::NaiveDate::from_ymd_opt(2026, 7, 29).unwrap();
+        assert_eq!(
+            stem_for_prompt("A cute puppy dog", date),
+            "2026-07-29-a-cute-puppy-dog"
+        );
     }
 
     #[test]

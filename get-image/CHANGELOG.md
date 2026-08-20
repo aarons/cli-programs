@@ -1,11 +1,25 @@
 # Changelog
 
-## [0.2.0] - 2026-08-20
+## [0.4.0] - 2026-08-20
 
 ### Added
 - `--reference`/`-r` flag (repeatable) to pass reference images for image-to-image generation, as local files (embedded as base64 data URLs) or HTTP(S) URLs
 - `/reference` session command to add, list, and clear reference images
 - Reference images are checked against the model's capabilities before sending: models without `input_references` support, or with a lower maximum than the number given, are refused with a clear message instead of a paid failed request
+
+## [0.3.0] - 2026-07-29
+
+### Added
+- Generation log: every generation is appended to `image-generation-log.jsonl` in the working directory, recording the timestamp, full prompt, model, quality, size, reported cost, and saved files
+
+### Changed
+- Default filenames are now the generation date plus the first few words of the prompt (e.g. `2026-07-29-a-cute-puppy-dog.png`), so names sort chronologically and stay short; the full prompt lives in the generation log
+
+## [0.2.0] - 2026-07-28
+
+### Added
+- Inline image display in the terminal after each generation, on terminals that support it (iTerm2, WezTerm, kitty, Ghostty); disable with `--no-display`
+- Prompt templates: `[a|b]` groups expand into one generation per combination, e.g. "a [red|blue] [cat|dog]" generates four images (limit 16), with a total cost summary
 
 ## [0.1.0] - 2026-07-28
 

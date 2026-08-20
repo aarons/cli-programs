@@ -17,6 +17,10 @@ get-image --model openai/gpt-image-1 --quality high --size 2K -n 4 "logo sketch"
 get-image --reference photo.jpg "make this scene look like a watercolor painting"
 get-image -r front.png -r side.png "product shot of this object on a marble table"
 
+# Template groups: [a|b] expands into one generation per combination.
+# This generates four images: red cat, red dog, blue cat, blue dog.
+get-image "a [red|blue] [cat|dog] in a meadow"
+
 # Generate once and exit without the interactive session
 get-image --once a quick test render
 
@@ -24,9 +28,45 @@ get-image --once a quick test render
 get-image models
 ```
 
-The prompt is saved to a filename derived from it, e.g.
-`a-watercolor-fox-reading-a-newspaper.png`; repeated generations never
-overwrite (`...-2.png`, `...-3.png`).
+## Filenames and the generation log
+
+Images are named with the generation date plus the first few words of the
+prompt, e.g. `2026-07-29-a-watercolor-fox-reading.png`, so names sort
+chronologically and stay recognizable. Repeated generations never overwrite
+(`...-2.png`, `...-3.png`), and `--output` replaces the whole stem with a
+name of your choosing.
+
+Because the filename only carries a fragment of the prompt, every generation
+is also appended to `image-generation-log.jsonl` in the working directory —
+one JSON line per API call with the timestamp, full prompt, model, quality,
+size, reported cost, and the files it produced:
+
+```json
+{"time":"2026-07-29T14:35:02-07:00","prompt":"a watercolor fox reading a newspaper","model":"google/gemini-2.5-flash-image","quality":"low","size":"512","cost":0.0034,"files":["2026-07-29-a-watercolor-fox-reading.png"]}
+```
+
+The log is plain-greppable (`grep fox image-generation-log.jsonl`) and
+parseable with `jq`, e.g. total spend in a directory:
+`jq -s 'map(.cost // 0) | add' image-generation-log.jsonl`.
+
+## Inline display
+
+On terminals that can render images — iTerm2, WezTerm, kitty, and Ghostty —
+each generated image is also displayed directly in the terminal (via the
+iTerm2 inline-image protocol or the kitty graphics protocol, chosen
+automatically). Pass `--no-display` to turn this off. Inside tmux or screen,
+which don't pass the escape sequences through, display is skipped
+automatically.
+
+## Prompt templates
+
+A prompt may contain `[option|option|...]` groups. Each group multiplies the
+prompt into one generation per option, and multiple groups combine:
+`"a [red|blue] [cat|dog]"` expands to four prompts. Brackets without a `|`
+inside are kept as literal text. A template is limited to 16 combinations as
+a guard against accidental large bills (each combination also honors
+`--count`). Templates work both on the command line and in the interactive
+session, and a total cost is printed after multi-prompt runs.
 
 ## Interactive session
 
@@ -35,7 +75,8 @@ stdin is not a terminal):
 
 ```
 get-image> ⏎               regenerate the same prompt
-get-image> <new text>      replace the prompt and generate (Up edits the last prompt)
+get-image> <new text>      replace the prompt and generate (Up edits the last prompt);
+                           [a|b] template groups expand here too
 get-image> /model <id>     switch model
 get-image> /quality high   set quality (low, medium, high, auto)
 get-image> /size 1024x768  set size (512, 1K, 2K, 4K, 1024, or WIDTHxHEIGHT)
