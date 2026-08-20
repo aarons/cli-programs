@@ -13,6 +13,10 @@ get-image a watercolor fox reading a newspaper
 # Pick a model, higher quality, bigger canvas, four copies
 get-image --model openai/gpt-image-1 --quality high --size 2K -n 4 "logo sketch"
 
+# Guide generation with reference images (local files or URLs, repeatable)
+get-image --reference photo.jpg "make this scene look like a watercolor painting"
+get-image -r front.png -r side.png "product shot of this object on a marble table"
+
 # Generate once and exit without the interactive session
 get-image --once a quick test render
 
@@ -36,12 +40,28 @@ get-image> /model <id>     switch model
 get-image> /quality high   set quality (low, medium, high, auto)
 get-image> /size 1024x768  set size (512, 1K, 2K, 4K, 1024, or WIDTHxHEIGHT)
 get-image> /count 4        images per generation (1-10)
+get-image> /reference p.jpg add a reference image (path or URL); /reference lists, /reference clear removes all
 get-image> /open [n]       open an image in the system viewer
 get-image> /list           list images generated this session
 get-image> /settings       show current settings
 get-image> /save           persist current settings as defaults
 get-image> /quit           exit
 ```
+
+## Reference images
+
+`--reference` (or `-r`) passes images to the model for image-to-image
+generation — style transfer, edits, "put this object in that scene", and so
+on. Local files are embedded as base64 data URLs (png, jpeg, webp, gif); HTTP(S)
+URLs are passed through for the provider to fetch. References stay attached for
+the whole interactive session until `/reference clear`.
+
+Not every model accepts reference images, and those that do cap how many. Before
+sending, `get-image` checks the model's capabilities via OpenRouter's image
+models API and refuses with a clear message if the model takes no references or
+fewer than you gave it, so you don't pay for a rejected request. If the
+capability catalog is unreachable, the request is sent as-is and the API's
+answer is reported.
 
 ## Authentication
 

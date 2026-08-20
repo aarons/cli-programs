@@ -12,6 +12,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
+use crate::reference::ImageReference;
+
 const BASE_URL: &str = "https://openrouter.ai/api/v1";
 
 /// Resolution tiers in ascending order, used to pick the nearest supported
@@ -75,6 +77,9 @@ pub struct ModelCapabilities {
     /// Supported resolution tiers ("512", "1K", ...); empty when the model
     /// has no size/resolution knob at all
     pub resolution_tiers: Vec<String>,
+    /// Maximum number of reference images accepted; None when the model
+    /// does not take reference images at all
+    pub input_references_max: Option<u32>,
 }
 
 /// Quality/size parameters to actually send, after checking capabilities
@@ -117,14 +122,43 @@ impl std::error::Error for ApiError {}
 // Request body types
 
 #[derive(Serialize)]
-struct ImageGenerationRequest {
+struct ImageGenerationRequest<'a> {
     model: String,
     prompt: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     quality: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     size: Option<String>,
+    /// Borrowed: embedded reference images can be megabytes each and are
+    /// shared across the concurrent per-copy requests
+    #[serde(skip_serializing_if = "<[_]>::is_empty")]
+    input_references: &'a [InputReference],
     provider: ProviderPreferences,
+}
+
+/// One entry of the `input_references` array: `{"type": "image_url",
+/// "image_url": {"url": ...}}`
+#[derive(Serialize)]
+struct InputReference {
+    #[serde(rename = "type")]
+    kind: &'static str,
+    image_url: InputReferenceUrl,
+}
+
+#[derive(Serialize)]
+struct InputReferenceUrl {
+    url: String,
+}
+
+impl From<&ImageReference> for InputReference {
+    fn from(reference: &ImageReference) -> Self {
+        Self {
+            kind: "image_url",
+            image_url: InputReferenceUrl {
+                url: reference.url.clone(),
+            },
+        }
+    }
 }
 
 #[derive(Serialize)]
@@ -225,12 +259,14 @@ struct CapabilityEntry {
     supported_parameters: HashMap<String, ParameterDescriptor>,
 }
 
-/// Capability descriptor; only enum `values` matter here, so range/boolean
-/// descriptors deserialize with an empty list
+/// Capability descriptor: enum descriptors carry `values`, range descriptors
+/// carry `min`/`max`, and boolean descriptors carry neither
 #[derive(Deserialize)]
 struct ParameterDescriptor {
     #[serde(default)]
     values: Vec<String>,
+    #[serde(default)]
+    max: Option<u32>,
 }
 
 /// Pricing values arrive as decimal strings, e.g. "0.00003", expressed per
@@ -254,16 +290,21 @@ impl ImageClient {
         }
     }
 
-    /// Generate `settings.count` images for `prompt` with concurrent requests
+    /// Generate `settings.count` images for `prompt` with concurrent requests,
+    /// guided by `references` when the model accepts reference images
     pub async fn generate(
         &self,
         prompt: &str,
+        references: &[ImageReference],
         settings: &GenerationSettings,
     ) -> Result<GenerationResult> {
         // Check the capability catalog so we only send quality/size to models
         // that accept them; several models (including the default Gemini one)
-        // reject unsupported parameters with an unhelpful 400.
+        // reject unsupported parameters with an unhelpful 400. Reference
+        // images are different: silently dropping them would change the
+        // result, so an unsupported model is an error instead.
         let capabilities = self.model_capabilities(&settings.model).await;
+        check_reference_support(&settings.model, references.len(), capabilities.as_ref())?;
         let plan = plan_tuning(settings, capabilities.as_ref());
         if !plan.notes.is_empty() && self.notes_printed.lock().unwrap().insert(settings.model.clone())
         {
@@ -272,6 +313,8 @@ impl ImageClient {
             }
         }
         let plan = Arc::new(plan);
+        let references: Arc<Vec<InputReference>> =
+            Arc::new(references.iter().map(InputReference::from).collect());
 
         let mut tasks = tokio::task::JoinSet::new();
         for _ in 0..settings.count {
@@ -279,7 +322,12 @@ impl ImageClient {
             let prompt = prompt.to_string();
             let model = settings.model.clone();
             let plan = Arc::clone(&plan);
-            tasks.spawn(async move { client.generate_one(&prompt, &model, &plan).await });
+            let references = Arc::clone(&references);
+            tasks.spawn(async move {
+                client
+                    .generate_one(&prompt, &model, &references, &plan)
+                    .await
+            });
         }
 
         let mut images = Vec::new();
@@ -368,6 +416,12 @@ impl ImageClient {
                         .get("resolution")
                         .map(|descriptor| descriptor.values.clone())
                         .unwrap_or_default(),
+                    input_references_max: entry
+                        .supported_parameters
+                        .get("input_references")
+                        // A descriptor without an explicit max still means
+                        // references are supported; treat it as unlimited
+                        .map(|descriptor| descriptor.max.unwrap_or(u32::MAX)),
                 };
                 (entry.id, capabilities)
             })
@@ -384,18 +438,22 @@ impl ImageClient {
         &self,
         prompt: &str,
         model: &str,
+        references: &[InputReference],
         plan: &TuningPlan,
     ) -> Result<GenerationResult> {
         let has_tuning = plan.quality.is_some() || plan.size.is_some();
 
-        match self.request_images(prompt, model, plan.quality.clone(), plan.size.clone()).await {
+        match self
+            .request_images(prompt, model, references, plan.quality.clone(), plan.size.clone())
+            .await
+        {
             Err(error) if has_tuning && is_bad_request(&error) => {
                 eprintln!(
                     "Note: {} rejected the request ({}); retrying without quality/size",
                     model,
                     error.root_cause()
                 );
-                self.request_images(prompt, model, None, None).await
+                self.request_images(prompt, model, references, None, None).await
             }
             other => other,
         }
@@ -405,6 +463,7 @@ impl ImageClient {
         &self,
         prompt: &str,
         model: &str,
+        references: &[InputReference],
         quality: Option<String>,
         size: Option<String>,
     ) -> Result<GenerationResult> {
@@ -413,13 +472,15 @@ impl ImageClient {
             prompt: prompt.to_string(),
             quality,
             size,
+            input_references: references,
             provider: ProviderPreferences { sort: "price" },
         };
 
         if self.debug {
+            // Embedded reference images make the body huge; keep it readable
             eprintln!(
                 "Request: {}",
-                serde_json::to_string_pretty(&request).unwrap_or_default()
+                truncate_for_debug(&serde_json::to_string_pretty(&request).unwrap_or_default())
             );
         }
 
@@ -591,6 +652,37 @@ fn nearest_supported_tier(size: &str, supported_tiers: &[String]) -> Option<Stri
         })
         .min_by_key(|(index, _)| index.abs_diff(requested_index))
         .map(|(_, tier)| tier.clone())
+}
+
+/// Refuse reference images up front when the catalog says the model can't
+/// take them (or can't take this many). Unknown capabilities let the request
+/// through, and the API reports any problem.
+fn check_reference_support(
+    model: &str,
+    reference_count: usize,
+    capabilities: Option<&ModelCapabilities>,
+) -> Result<()> {
+    if reference_count == 0 {
+        return Ok(());
+    }
+    let Some(capabilities) = capabilities else {
+        return Ok(());
+    };
+
+    match capabilities.input_references_max {
+        None => anyhow::bail!(
+            "{} does not accept reference images; pick a model that does (see `get-image models`)",
+            model
+        ),
+        Some(max) if reference_count as u64 > u64::from(max) => anyhow::bail!(
+            "{} accepts at most {} reference image{}, but {} were given",
+            model,
+            max,
+            if max == 1 { "" } else { "s" },
+            reference_count
+        ),
+        Some(_) => Ok(()),
+    }
 }
 
 /// True when the error is an HTTP 400 from the Images API
@@ -796,7 +888,69 @@ mod tests {
         ModelCapabilities {
             supports_quality,
             resolution_tiers: tiers.iter().map(|tier| tier.to_string()).collect(),
+            input_references_max: None,
         }
+    }
+
+    fn capabilities_with_references(input_references_max: Option<u32>) -> ModelCapabilities {
+        ModelCapabilities {
+            input_references_max,
+            ..capabilities(false, &[])
+        }
+    }
+
+    #[test]
+    fn test_references_are_refused_when_model_lacks_support() {
+        let error = check_reference_support("test/model", 1, Some(&capabilities_with_references(None)))
+            .unwrap_err();
+        assert!(error.to_string().contains("does not accept reference images"));
+    }
+
+    #[test]
+    fn test_references_are_refused_beyond_the_model_maximum() {
+        let capabilities = capabilities_with_references(Some(3));
+        assert!(check_reference_support("test/model", 3, Some(&capabilities)).is_ok());
+
+        let error = check_reference_support("test/model", 4, Some(&capabilities)).unwrap_err();
+        assert!(error.to_string().contains("at most 3 reference images"));
+    }
+
+    #[test]
+    fn test_references_pass_when_none_given_or_capabilities_unknown() {
+        // No references: a reference-less model is fine
+        assert!(check_reference_support("test/model", 0, Some(&capabilities_with_references(None))).is_ok());
+        // Unknown capabilities: send optimistically, let the API decide
+        assert!(check_reference_support("test/model", 5, None).is_ok());
+    }
+
+    #[test]
+    fn test_request_serializes_references_in_image_url_shape() {
+        let reference = ImageReference {
+            label: "photo.jpg".to_string(),
+            url: "https://example.com/photo.jpg".to_string(),
+        };
+        let references = [InputReference::from(&reference)];
+        let request = ImageGenerationRequest {
+            model: "test/model".to_string(),
+            prompt: "watercolor".to_string(),
+            quality: None,
+            size: None,
+            input_references: &references,
+            provider: ProviderPreferences { sort: "price" },
+        };
+        let json: serde_json::Value = serde_json::to_value(&request).unwrap();
+        assert_eq!(
+            json["input_references"],
+            serde_json::json!([{"type": "image_url", "image_url": {"url": "https://example.com/photo.jpg"}}])
+        );
+
+        // Without references the field is omitted entirely
+        let request = ImageGenerationRequest {
+            input_references: &[],
+            ..request
+        };
+        let json: serde_json::Value = serde_json::to_value(&request).unwrap();
+        assert!(json.get("input_references").is_none());
     }
 
     #[test]
@@ -876,6 +1030,7 @@ mod tests {
                 "supported_parameters": {
                     "resolution": {"type": "enum", "values": ["512", "1K", "2K", "4K"]},
                     "n": {"type": "range", "min": 1, "max": 1},
+                    "input_references": {"type": "range", "min": 0, "max": 14},
                     "seed": {"type": "boolean"}
                 }
             }]
@@ -888,5 +1043,7 @@ mod tests {
             ["512", "1K", "2K", "4K"]
         );
         assert!(entry.supported_parameters["n"].values.is_empty());
+        assert_eq!(entry.supported_parameters["input_references"].max, Some(14));
+        assert_eq!(entry.supported_parameters["seed"].max, None);
     }
 }

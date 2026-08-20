@@ -6,6 +6,7 @@ use std::path::PathBuf;
 use crate::config;
 use crate::openrouter::{GenerationSettings, ImageClient};
 use crate::output;
+use crate::reference::ImageReference;
 
 /// One image-generation session: the current prompt and settings, plus every
 /// image saved so far. Drives both the initial generation and the interactive
@@ -14,6 +15,8 @@ pub struct Session {
     pub client: ImageClient,
     pub working_directory: PathBuf,
     pub prompt: String,
+    /// Reference images sent with every generation until cleared
+    pub references: Vec<ImageReference>,
     pub settings: GenerationSettings,
     pub output_stem: Option<String>,
     pub open_after_save: bool,
@@ -27,9 +30,10 @@ Enter          regenerate with the same prompt
 /quality <q>   set quality: low, medium, high, auto
 /size <s>      set size: 512 or 1024x768
 /count <n>     set number of images per generation (1-10)
+/reference <p> add a reference image (file path or URL); /reference clear removes all
 /open [n]      open image n from /list (default: the newest image)
 /list          list images generated this session
-/settings      show current model, quality, size, and count
+/settings      show current model, quality, size, count, and references
 /save          save current settings as defaults in the config file
 /help          show this help
 /quit          exit (Ctrl-C and Ctrl-D also work)";
@@ -39,12 +43,25 @@ impl Session {
     /// directory, printing each saved path.
     pub async fn generate(&mut self) -> Result<()> {
         let plural = if self.settings.count == 1 { "" } else { "s" };
+        let reference_summary = match self.references.len() {
+            0 => String::new(),
+            1 => ", 1 reference image".to_string(),
+            count => format!(", {} reference images", count),
+        };
         println!(
-            "Generating {} image{} with {} (quality {}, size {})...",
-            self.settings.count, plural, self.settings.model, self.settings.quality, self.settings.size
+            "Generating {} image{} with {} (quality {}, size {}{})...",
+            self.settings.count,
+            plural,
+            self.settings.model,
+            self.settings.quality,
+            self.settings.size,
+            reference_summary
         );
 
-        let result = self.client.generate(&self.prompt, &self.settings).await?;
+        let result = self
+            .client
+            .generate(&self.prompt, &self.references, &self.settings)
+            .await?;
 
         if result.images.is_empty() {
             anyhow::bail!("The model returned no images.");
@@ -135,6 +152,7 @@ impl Session {
             "quality" => self.set_from_parser(argument, "quality"),
             "size" | "s" => self.set_from_parser(argument, "size"),
             "count" | "n" => self.set_from_parser(argument, "count"),
+            "reference" | "references" | "r" => self.set_reference(argument),
             "open" | "o" => self.open_image(argument),
             "list" | "l" | "ls" => {
                 self.print_image_list();
@@ -166,6 +184,41 @@ impl Session {
         self.settings.model = argument.to_string();
         println!("Model set to {}", self.settings.model);
         Ok(())
+    }
+
+    /// `/reference` lists, `/reference clear` removes all, anything else is a
+    /// path or URL to add
+    fn set_reference(&mut self, argument: &str) -> Result<()> {
+        match argument {
+            "" => {
+                self.print_references();
+                println!("Usage: /reference <path or URL>  |  /reference clear");
+            }
+            "clear" | "none" => {
+                self.references.clear();
+                println!("Reference images cleared");
+            }
+            source => {
+                let reference = ImageReference::load(source)?;
+                self.references.push(reference);
+                println!(
+                    "Added reference image {} ({} total)",
+                    source,
+                    self.references.len()
+                );
+            }
+        }
+        Ok(())
+    }
+
+    fn print_references(&self) {
+        if self.references.is_empty() {
+            println!("No reference images.");
+            return;
+        }
+        for (index, reference) in self.references.iter().enumerate() {
+            println!("{:>3}  {}", index + 1, reference.label);
+        }
     }
 
     fn set_from_parser(&mut self, argument: &str, key: &str) -> Result<()> {
@@ -241,6 +294,16 @@ impl Session {
         println!("quality: {}", self.settings.quality);
         println!("size:    {}", self.settings.size);
         println!("count:   {}", self.settings.count);
+        match self.references.len() {
+            0 => {}
+            1 => println!("reference: {}", self.references[0].label),
+            _ => {
+                println!("references:");
+                for reference in &self.references {
+                    println!("  {}", reference.label);
+                }
+            }
+        }
     }
 
     fn save_settings_as_defaults(&self) -> Result<()> {
@@ -268,6 +331,7 @@ mod tests {
             client: ImageClient::new("test-key".to_string(), false),
             working_directory: std::env::temp_dir(),
             prompt: "a fox".to_string(),
+            references: Vec::new(),
             settings: GenerationSettings {
                 model: "google/gemini-2.5-flash-image".to_string(),
                 quality: "low".to_string(),
@@ -306,6 +370,23 @@ mod tests {
 
         assert!(!session.handle_command("count 99"));
         assert_eq!(session.settings.count, 1);
+    }
+
+    #[test]
+    fn test_reference_command_adds_and_clears_references() {
+        let mut session = session();
+
+        assert!(!session.handle_command("reference https://example.com/a.jpg"));
+        assert!(!session.handle_command("r https://example.com/b.jpg"));
+        let labels: Vec<&str> = session.references.iter().map(|r| r.label.as_str()).collect();
+        assert_eq!(labels, ["https://example.com/a.jpg", "https://example.com/b.jpg"]);
+
+        // An unreadable file is reported, not added
+        assert!(!session.handle_command("reference /definitely/not/here.png"));
+        assert_eq!(session.references.len(), 2);
+
+        assert!(!session.handle_command("reference clear"));
+        assert!(session.references.is_empty());
     }
 
     #[test]

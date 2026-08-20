@@ -1,6 +1,7 @@
 mod config;
 mod openrouter;
 mod output;
+mod reference;
 mod session;
 
 use anyhow::{Context, Result};
@@ -9,6 +10,7 @@ use std::io::IsTerminal;
 
 use config::Config;
 use openrouter::{GenerationSettings, ImageClient};
+use reference::ImageReference;
 
 #[derive(Parser, Debug)]
 #[command(
@@ -35,6 +37,11 @@ struct Args {
     /// Number of images to generate (1-10)
     #[arg(short = 'n', long)]
     count: Option<u32>,
+
+    /// Reference image (file path or URL) to guide generation; repeatable.
+    /// Only models that accept reference images can be used with this.
+    #[arg(short, long = "reference", value_name = "PATH_OR_URL")]
+    references: Vec<String>,
 
     /// Output filename stem (default: derived from the prompt)
     #[arg(short, long)]
@@ -109,6 +116,11 @@ async fn main() -> Result<()> {
     let config = Config::load()?;
     let settings = build_settings(&args, &config)?;
     let open_after_save = args.open || config.open_after_save;
+    let references = args
+        .references
+        .iter()
+        .map(|source| ImageReference::load(source))
+        .collect::<Result<Vec<_>>>()?;
 
     let client = ImageClient::new(resolve_api_key()?, args.debug);
     let working_directory = std::env::current_dir().context("Cannot determine current directory")?;
@@ -117,6 +129,7 @@ async fn main() -> Result<()> {
         client,
         working_directory,
         prompt,
+        references,
         settings,
         output_stem: args.output,
         open_after_save,
